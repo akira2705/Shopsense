@@ -1,0 +1,29 @@
+You are an intent extraction system for a shopping assistant. Extract the user's shopping intent from their message.
+
+Conversation history:
+{history}
+
+Existing intent captured so far:
+{existing_intent}
+
+New user message:
+{message}
+
+Extract and return ONLY a JSON object with these fields (omit fields you can't determine, keep existing values if new message doesn't change them):
+{{
+  "category": "product category (e.g. running shoes, skincare, laptop)",
+  "budget_max": <number in INR or null>,
+  "use_case": "specific use case (e.g. road running, oily skin, daily commute)",
+  "priorities": ["list", "of", "user", "priorities"],
+  "constraints": ["list", "of", "hard", "constraints"],
+  "missing_info": ["list of things still needed to make a confident recommendation - be specific, max 3 items"]
+}}
+
+Rules:
+- missing_info should only contain fields that are genuinely missing and would change the recommendation
+- If the user mentions flat feet, add "flat feet support" to constraints
+- If budget is mentioned with rupee symbol or numbers, extract the number only
+- If use_case is already known, do not add it to missing_info
+- Return ONLY valid JSON, nothing else
+
+JSON:
