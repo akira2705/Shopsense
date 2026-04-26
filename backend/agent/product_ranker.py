@@ -45,6 +45,13 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
         yield {"type": "error", "message": "No products to rank."}
         return
 
+    # Pre-filter: remove products that hard-violate explicit constraints
+    # e.g. user said "8 seater" → eliminate clear 5-seaters before scoring
+    filtered = _apply_constraint_filter(intent, products)
+    # If the filter removed everything, fall back to the full list
+    if filtered:
+        products = filtered
+
     # Score every product deterministically
     scored = []
     for p in products:
@@ -227,6 +234,76 @@ def _build_elimination_deterministic(intent: dict, products: list[dict]) -> list
         }
         for p in products
     ]
+
+
+def _apply_constraint_filter(intent: dict, products: list) -> list:
+    """
+    Remove products that clearly violate hard constraints.
+    Only filters when the constraint is unambiguous (seating, fuel type, transmission).
+    Returns empty list if everything would be filtered (caller falls back to full list).
+    """
+    constraints = [c.lower().strip() for c in intent.get("constraints", []) if c]
+    if not constraints:
+        return products
+
+    result = list(products)
+
+    for c in constraints:
+        # ── Seating capacity ──────────────────────────────────────────────
+        seating_match = None
+        for keyword in ["8 seater", "seating for 8", "8-seater", "seven seater", "7 seater", "7-seater", "seating for 7"]:
+            if keyword in c:
+                seating_match = 7 if "7" in keyword or "seven" in keyword else 8
+                break
+
+        if seating_match:
+            # Keep products tagged as MPV/MUV/7-seater/8-seater
+            # Eliminate products tagged as small/city/hatchback/micro that have no seating tags
+            _seating_tags = {"7 seater", "7-seater", "8 seater", "8-seater", "mpv", "muv", "seven seater"}
+            _small_tags   = {"hatchback", "city", "micro", "alto", "swift", "i20", "activa", "scooter"}
+
+            def _keep_for_seating(p):
+                txt = _text_lower(p)
+                has_seating_tag = any(t in txt for t in _seating_tags)
+                is_clearly_small = any(t in txt for t in _small_tags) and not has_seating_tag
+                return not is_clearly_small
+
+            filtered = [p for p in result if _keep_for_seating(p)]
+            if filtered:
+                result = filtered
+
+        # ── Automatic transmission ────────────────────────────────────────
+        if "automatic" in c or "at" == c or "cvt" in c:
+            auto_tags = {"automatic", "cvt", "imt", "at", " at "}
+            manual_only_tags = {"mt", "manual transmission", "6mt", "5mt"}
+            filtered = [p for p in result if not (
+                any(t in _text_lower(p) for t in manual_only_tags) and
+                not any(t in _text_lower(p) for t in auto_tags)
+            )]
+            if filtered:
+                result = filtered
+
+        # ── Fuel type ─────────────────────────────────────────────────────
+        for fuel in ["petrol", "diesel", "cng", "electric", "hybrid"]:
+            if fuel in c:
+                other_fuels = {"petrol", "diesel", "cng", "electric"} - {fuel}
+                filtered = [p for p in result if not (
+                    any(f in _text_lower(p) for f in other_fuels) and
+                    fuel not in _text_lower(p)
+                )]
+                if filtered:
+                    result = filtered
+                break
+
+    return result
+
+
+def _text_lower(product: dict) -> str:
+    return " ".join([
+        product.get("title", ""),
+        " ".join(product.get("tags", [])),
+        product.get("description", ""),
+    ]).lower()
 
 
 def _reason_for_elimination(product: dict, budget_max, use_case: str, constraints: list) -> str:

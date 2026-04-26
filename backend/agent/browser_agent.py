@@ -130,6 +130,22 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/mahindra-cars/xuv700/",
         },
+        {
+            "id": "cw_14", "title": "Toyota Innova HyCross ZX Hybrid CVT",
+            "description": "2024, 7-seater strong hybrid MPV, 21.1 kmpl, panoramic sunroof, ADAS, otto mode, premium cabin",
+            "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "hybrid", "hycross", "innova hycross", "toyota", "automatic", "cvt", "family", "premium", "fuel efficient", "safety"],
+            "price": 3490000, "rating": 4.8, "review_count": 7100,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/toyota-cars/innova-hycross/",
+        },
+        {
+            "id": "cw_15", "title": "Toyota Innova HyCross G Petrol CVT",
+            "description": "2024, 7-seater MPV petrol CVT, 16.13 kmpl, captain seats, cruise control, entry-level HyCross",
+            "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "petrol", "hycross", "innova hycross", "toyota", "automatic", "cvt", "family"],
+            "price": 1960000, "rating": 4.6, "review_count": 5400,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/toyota-cars/innova-hycross/",
+        },
     ],
 
     # ── Used / second-hand items ─────────────────────────────────────────────
@@ -459,7 +475,8 @@ def _pick_site(intent: dict) -> str:
         "car", "cars", "bike", "bikes", "motorcycle", "motorcycles",
         "scooter", "scooters", "suv", "sedan", "hatchback", "vehicle",
         "vehicles", "auto", "swift", "alto", "i20", "creta", "nexon",
-        "fortuner", "innova", "baleno", "brezza", "sonet", "venue",
+        "fortuner", "innova", "hycross", "innova hycross", "baleno", "brezza", "sonet", "venue",
+        "ertiga", "carens", "xuv700", "xuv", "mpv", "muv",
         "activa", "splendor", "pulsar", "unicorn", "classic 350",
         "royal enfield", "tvs", "bajaj", "hero honda",
         "new car", "new bike", "buy car", "buy bike",

@@ -6,7 +6,9 @@ Formula:
   Budget match:      0-20 pts
   Use case match:    0-25 pts
   Priority match:    0-15 pts
+  Constraint match:  0-15 pts  (bonus if product meets hard constraints)
   Ambiguity penalty: -8 pts per unresolved missing_info item
+  Constraint penalty:-12 pts per hard constraint clearly violated by product pool
 
 Threshold to commit: 80 pts
 """
@@ -27,6 +29,28 @@ def _word_match_ratio(words: list, products: list) -> float:
         return 0.0
     matched = sum(1 for p in products if any(w in _text(p) for w in words))
     return matched / len(products)
+
+
+# Seating constraint keywords — for hard seating-capacity checks
+_SEATING_KEYWORDS = {
+    "8 seater": ["8 seater", "8-seater", "eight seater", "mpv", "muv"],
+    "7 seater": ["7 seater", "7-seater", "seven seater", "mpv", "muv", "innova", "ertiga", "carens"],
+    "6 seater": ["6 seater", "6-seater", "six seater"],
+    "5 seater": ["5 seater", "5-seater", "five seater"],
+    "seating for 8": ["8 seater", "8-seater", "mpv", "muv"],
+    "seating for 7": ["7 seater", "7-seater", "mpv", "muv"],
+}
+
+
+def _constraint_words(constraint: str) -> list[str]:
+    """Extract searchable keywords from a constraint string."""
+    c = constraint.lower().strip()
+    # Check seating keywords first
+    for key, expansions in _SEATING_KEYWORDS.items():
+        if key in c:
+            return expansions
+    # For other constraints, just use words > 3 chars
+    return [w for w in c.split() if len(w) > 3]
 
 
 def compute_confidence(intent: dict, products: list) -> dict:
@@ -76,14 +100,25 @@ def compute_confidence(intent: dict, products: list) -> dict:
         else:
             scores["priorities"] = 10
 
-    # --- Ambiguity penalty (-8 per item) ---
-    missing = [m for m in intent.get("missing_info", []) if m]
-    scores["ambiguity_penalty"] = -(len(missing) * 8)
+    # --- Constraints — check hard requirements (affects ambiguity penalty) ---
+    # Each violated constraint adds an extra penalty on top of the ambiguity penalty
+    constraints = [c for c in intent.get("constraints", []) if c]
+    constraint_penalty = 0
+    for c in constraints:
+        c_words = _constraint_words(c)
+        if c_words and products:
+            # If NONE of the products in the pool match this constraint,
+            # it means we likely haven't found what the user needs yet
+            ratio = _word_match_ratio(c_words, products)
+            if ratio == 0:
+                constraint_penalty -= 12  # hard miss — nothing in pool meets this
+
+    scores["ambiguity_penalty"] = -(len([m for m in intent.get("missing_info", []) if m]) * 8) + constraint_penalty
 
     total = max(0, min(100, sum(scores.values())))
 
     return {
         "score": total,
         "breakdown": scores,
-        "ambiguity_count": len(missing),
+        "ambiguity_count": len([m for m in intent.get("missing_info", []) if m]),
     }
