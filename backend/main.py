@@ -1,6 +1,13 @@
+import asyncio
 import json
 import os
+import sys
 import uuid
+
+# Windows: uvicorn defaults to SelectorEventLoop which can't spawn subprocesses.
+# Playwright needs ProactorEventLoop to launch Chromium.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -111,7 +118,7 @@ async def chat(req: ChatRequest):
             if not products:
                 yield _sse({
                     "type": "message",
-                    "content": "I couldn't find an exact match — let me broaden the search.",
+                    "content": "Hmm, nothing exact — let me widen the search a bit.",
                 })
                 async for event in search_products_broad_stream(intent):
                     if event["type"] == "products":
@@ -121,9 +128,14 @@ async def chat(req: ChatRequest):
 
             # 4b. Still nothing
             if not products:
+                category = intent.get("category", "that")
                 yield _sse({
                     "type": "message",
-                    "content": "I wasn't able to find products matching your criteria right now. Try adjusting your budget or category.",
+                    "content": (
+                        f"I couldn't pull up live listings for {category} right now — "
+                        f"the site may be slow or blocking automated access. "
+                        f"Try rephrasing, or give me a different category and I'll try again."
+                    ),
                 })
                 yield _sse({"type": "done"})
                 return
