@@ -14,7 +14,7 @@ from agent.confidence_engine import compute_confidence
 from agent.followup_generator import generate_followup
 from agent.intent_extractor import extract_intent
 from agent.product_ranker import rank_and_reason
-from agent.browser_agent import search_products, search_products_broad
+from agent.browser_agent import search_products_stream, search_products_broad_stream
 
 app = FastAPI(title="ShopSense API", version="1.0.0")
 
@@ -99,8 +99,13 @@ async def chat(req: ChatRequest):
                     yield _sse({"type": "done"})
                     return
 
-            # 4. Search Shopify
-            products = await search_products(intent)
+            # 4. Browse + extract products (streams live status events)
+            products = []
+            async for event in search_products_stream(intent):
+                if event["type"] == "products":
+                    products = event["data"]
+                else:
+                    yield _sse(event)   # forward status to frontend
 
             # 4a. Fallback: broad search if nothing matched
             if not products:
@@ -108,7 +113,11 @@ async def chat(req: ChatRequest):
                     "type": "message",
                     "content": "I couldn't find an exact match — let me broaden the search.",
                 })
-                products = await search_products_broad(intent)
+                async for event in search_products_broad_stream(intent):
+                    if event["type"] == "products":
+                        products = event["data"]
+                    else:
+                        yield _sse(event)
 
             # 4b. Still nothing
             if not products:

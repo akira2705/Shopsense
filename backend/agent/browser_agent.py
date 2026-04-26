@@ -185,49 +185,67 @@ async def _vision_extract(screenshot_b64: str, site: str) -> list[dict]:
         return []
 
 
-# ── Public API (same shape as shopify_client) ───────────────────────────────
+# ── Public API ──────────────────────────────────────────────────────────────
 
-async def search_products(intent: dict, limit: int = 15) -> list[dict]:
-    """Browse the best site for the intent, screenshot it, extract products via AI vision."""
+def _status(text: str) -> dict:
+    return {"type": "status", "text": text}
+
+
+async def search_products_stream(intent: dict, limit: int = 15):
+    """
+    Async generator — yields status dicts then a final products dict.
+    Use in main.py to stream live status to the frontend.
+    """
     site = _pick_site(intent)
     query = _build_query(intent)
+    site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
+    label = site_labels.get(site, site)
     url = _SEARCH_URLS[site].format(query=query.replace(" ", "+"))
 
-    print(f"[browser_agent] browsing {site}: {url}")
-
+    yield _status(f"Opening {label}…")
     screenshot_b64 = await _get_screenshot_b64(url)
-    if not screenshot_b64:
-        return []
 
+    if not screenshot_b64:
+        yield {"type": "products", "data": []}
+        return
+
+    yield _status(f"Screenshot taken — reading with AI vision…")
     products = await _vision_extract(screenshot_b64, site)
 
-    # Filter by budget
     budget_max = intent.get("budget_max")
     if budget_max:
         products = [p for p in products if p["price"] <= budget_max]
 
-    print(f"[browser_agent] extracted {len(products)} products from {site}")
-    return products[:limit]
+    count = len(products)
+    yield _status(f"Found {count} product{'s' if count != 1 else ''} — ranking by confidence…")
+    yield {"type": "products", "data": products[:limit]}
 
 
-async def search_products_broad(intent: dict) -> list[dict]:
-    """Fallback: drop constraints, try Flipkart if Amazon failed."""
+async def search_products_broad_stream(intent: dict):
+    """Broad fallback — also yields status events."""
     site = _pick_site(intent)
     fallback_site = "flipkart" if site == "amazon" else "amazon"
+    site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
 
     loose_intent = {"category": intent.get("category", "")}
+    products = []
 
-    # Try original site first, then fallback
-    products = await search_products(loose_intent, limit=10)
+    async for event in search_products_stream(loose_intent, limit=10):
+        if event["type"] == "products":
+            products = event["data"]
+        else:
+            yield event
+
     if not products:
+        label = site_labels.get(fallback_site, fallback_site)
+        yield _status(f"Trying {label} instead…")
         query = _build_query(loose_intent)
         url = _SEARCH_URLS[fallback_site].format(query=query.replace(" ", "+"))
-        print(f"[browser_agent] broad fallback → {fallback_site}")
         screenshot_b64 = await _get_screenshot_b64(url)
         if screenshot_b64:
             products = await _vision_extract(screenshot_b64, fallback_site)
 
-    return products
+    yield {"type": "products", "data": products}
 
 
 async def create_cart(variant_id: str, quantity: int = 1) -> Optional[str]:

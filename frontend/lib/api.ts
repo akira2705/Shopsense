@@ -52,6 +52,7 @@ export interface SSEEvent {
     | "confidence"
     | "message"
     | "followup"
+    | "status"                // live browser agent progress text
     | "recommendation"        // legacy — kept for fallback
     | "recommendation_start"  // A: product + elimination, no reasoning yet
     | "token"                 // A: streaming reasoning chunk
