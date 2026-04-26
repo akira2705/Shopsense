@@ -89,6 +89,47 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/hyundai-cars/creta/",
         },
+        # 7-8 seater MPV / MUV
+        {
+            "id": "cw_9", "title": "Toyota Innova Crysta GX MT Diesel",
+            "description": "2024, 7-seater MPV, 2.4L diesel, 15.1 kmpl, captain seats, most trusted family MPV",
+            "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "diesel", "toyota", "innova", "family", "road trip", "highway", "spacious"],
+            "price": 1990000, "rating": 4.7, "review_count": 14200,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/toyota-cars/innova-crysta/",
+        },
+        {
+            "id": "cw_10", "title": "Maruti Suzuki Ertiga VXi CNG",
+            "description": "2024, 7-seater MPV, CNG + petrol, 26.11 km/kg, best-value people carrier",
+            "tags": ["new", "car", "mpv", "7 seater", "7-seater", "cng", "maruti", "ertiga", "family", "spacious", "budget"],
+            "price": 1070000, "rating": 4.3, "review_count": 9800,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/maruti-suzuki-cars/ertiga/",
+        },
+        {
+            "id": "cw_11", "title": "Kia Carens Prestige+ 7-Seat Diesel AT",
+            "description": "2024, 7-seater, automatic, panoramic sunroof, ADAS, 360 camera, premium MPV",
+            "tags": ["new", "car", "mpv", "7 seater", "7-seater", "diesel", "kia", "carens", "automatic", "family", "premium"],
+            "price": 2030000, "rating": 4.5, "review_count": 6700,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/kia-cars/carens/",
+        },
+        {
+            "id": "cw_12", "title": "Toyota Fortuner Legender 4x2 AT",
+            "description": "2024, 7-seater SUV, 2.8L diesel, 10 kmpl, legendary off-road, full-size body-on-frame",
+            "tags": ["new", "car", "suv", "7 seater", "7-seater", "diesel", "toyota", "fortuner", "automatic", "premium", "highway", "off road"],
+            "price": 4650000, "rating": 4.8, "review_count": 5200,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/toyota-cars/fortuner/",
+        },
+        {
+            "id": "cw_13", "title": "Mahindra XUV700 AX7 7-Seat Diesel AT",
+            "description": "2024, 7-seater, ADAS Level 2, panoramic sunroof, 360 camera, 18.15 kmpl",
+            "tags": ["new", "car", "suv", "7 seater", "7-seater", "diesel", "mahindra", "xuv700", "automatic", "family", "premium", "highway"],
+            "price": 2690000, "rating": 4.6, "review_count": 8400,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/mahindra-cars/xuv700/",
+        },
     ],
 
     # ── Used / second-hand items ─────────────────────────────────────────────

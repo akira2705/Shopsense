@@ -183,8 +183,8 @@ ALLOWED_ORIGINS=http://localhost:3000
 
 Start the server:
 ```bash
-# Windows
-py -m uvicorn main:app --reload --port 8000
+# Windows — use start.py so Playwright's Chromium works correctly
+py start.py
 
 # Mac / Linux
 uvicorn main:app --reload --port 8000
