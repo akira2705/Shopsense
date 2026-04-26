@@ -14,7 +14,7 @@ from agent.confidence_engine import compute_confidence
 from agent.followup_generator import generate_followup
 from agent.intent_extractor import extract_intent
 from agent.product_ranker import rank_and_reason
-from agent.shopify_client import search_products, search_products_broad
+from agent.browser_agent import search_products, search_products_broad
 
 app = FastAPI(title="ShopSense API", version="1.0.0")
 

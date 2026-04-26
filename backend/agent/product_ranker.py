@@ -1,9 +1,9 @@
 """
 Product Ranker
 
-Ranks products deterministically by confidence score,
-then calls LLM once to generate reasoning for the top product.
-Elimination reasons are fully deterministic — no LLM.
+A. Streams reasoning tokens live via Groq streaming API
+B. AI-generated elimination reasons (single batched LLM call)
+C. Shared client across all calls (Groq via OpenAI-compatible endpoint)
 """
 
 import json
@@ -11,15 +11,31 @@ import os
 import re
 from typing import AsyncGenerator
 
-import anthropic
+from openai import AsyncOpenAI
 
 from agent.confidence_engine import compute_confidence
 
-_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+_client = AsyncOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
 
-_PROMPT_PATH = os.path.join(os.path.dirname(__file__), "../prompts/reasoning_prompt.txt")
-with open(_PROMPT_PATH) as f:
-    _REASONING_TEMPLATE = f.read()
+_MODEL = "llama-3.3-70b-versatile"
+
+_REASONING_SYSTEM = (
+    "You are a shopping assistant helping a user make a confident, regret-free purchase. "
+    "Write concise, honest reasoning for why a specific product is the right choice. "
+    "Never use filler phrases like 'Certainly', 'Great choice', 'Perfect for you', 'This product'. "
+    "Sound like a knowledgeable friend, not a product listing."
+)
+
+_ELIMINATION_SYSTEM = (
+    "You are a shopping assistant. Given a user's shopping intent and a list of products that were NOT "
+    "chosen as the best match, explain in one short honest sentence (max 10 words) why each wasn't selected. "
+    "Be specific — mention price, use case mismatch, or feature gaps. Never say 'Lower overall match score'."
+)
+
+_REGRET_SYSTEM = "You assess purchase regret risk. Return only valid JSON, no extra text."
 
 
 async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[dict, None]:
@@ -38,52 +54,12 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
     scored.sort(key=lambda x: x["_score"], reverse=True)
     top = scored[0]
 
-    # Build elimination list (deterministic)
-    elimination = _build_elimination(intent, scored[1:])
+    # B: AI elimination reasons — single batched call
+    elimination = await _ai_elimination_reasons(intent, scored[1:])
 
-    # Generate reasoning via LLM (single call, structured JSON output)
-    prompt = _REASONING_TEMPLATE.format(
-        product_name=top["title"],
-        product_description=top["description"][:600],
-        product_price=f"{top['price']:,.0f}",
-        product_tags=", ".join(top.get("tags", [])),
-        user_budget=f"₹{intent['budget_max']:,}" if intent.get("budget_max") else "not specified",
-        user_use_case=intent.get("use_case") or "general use",
-        user_priorities=", ".join(intent.get("priorities", [])) or "not specified",
-        user_constraints=", ".join(intent.get("constraints", [])) or "none",
-    )
-
-    reasoning = ""
-    regret_risk = "low"
-    regret_scenario = ""
-    tradeoff = ""
-
-    try:
-        response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
-
-        # Extract JSON robustly
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if match:
-            parsed = json.loads(match.group())
-            reasoning = parsed.get("reasoning", "")
-            regret_risk = parsed.get("regret_risk", "low")
-            regret_scenario = parsed.get("regret_scenario", "")
-            tradeoff = parsed.get("tradeoff", "")
-        else:
-            reasoning = raw
-
-    except (json.JSONDecodeError, anthropic.APIError, Exception) as exc:
-        print(f"[product_ranker] reasoning error: {exc}")
-        reasoning = f"{top['title']} matches your stated needs based on category, budget, and use case alignment."
-        tradeoff = "Unable to generate detailed tradeoff analysis."
-
+    # Emit recommendation_start with product info + elimination (reasoning streams after)
     yield {
-        "type": "recommendation",
+        "type": "recommendation_start",
         "product": {
             "id": top["id"],
             "title": top["title"],
@@ -92,34 +68,160 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
             "variant_id": top.get("variant_id"),
             "tags": top.get("tags", []),
         },
-        "reasoning": reasoning,
-        "regret_risk": regret_risk,
-        "regret_scenario": regret_scenario,
-        "tradeoff": tradeoff,
         "confidence_score": top["_score"],
         "elimination": elimination,
     }
 
+    # A: Stream reasoning tokens live
+    reasoning_text = ""
+    _budget = ("₹" + f"{intent['budget_max']:,}") if intent.get("budget_max") else "not specified"
+    reasoning_user_prompt = (
+        f"Product: {top['title']}\n"
+        f"Price: ₹{top['price']:,.0f}\n"
+        f"Description: {top.get('description', '')[:400]}\n"
+        f"Tags: {', '.join(top.get('tags', []))}\n\n"
+        f"User:\n"
+        f"- Budget: {_budget}\n"
+        f"- Use case: {intent.get('use_case') or 'general use'}\n"
+        f"- Priorities: {', '.join(intent.get('priorities', [])) or 'not specified'}\n"
+        f"- Constraints: {', '.join(intent.get('constraints', [])) or 'none'}\n\n"
+        f"Write 2-3 sentences explaining why this product fits this user. "
+        f"Mention their actual use case and constraints by name. Be direct and honest."
+    )
 
-def _build_elimination(intent: dict, products: list[dict]) -> list[dict]:
-    """
-    Deterministically explain why each product was not the top pick.
-    No LLM involved — derived purely from confidence sub-scores.
-    """
+    try:
+        stream = await _client.chat.completions.create(
+            model=_MODEL,
+            max_tokens=300,
+            messages=[
+                {"role": "system", "content": _REASONING_SYSTEM},
+                {"role": "user", "content": reasoning_user_prompt},
+            ],
+            stream=True,
+        )
+        async for chunk in stream:
+            text = chunk.choices[0].delta.content or ""
+            if text:
+                reasoning_text += text
+                yield {"type": "token", "text": text}
+
+    except Exception as exc:
+        print(f"[product_ranker] streaming error: {exc}")
+        reasoning_text = (
+            f"{top['title']} matches your stated needs based on category, budget, and use case alignment."
+        )
+        yield {"type": "token", "text": reasoning_text}
+
+    # Get regret_risk / tradeoff — fast non-streaming call
+    regret_risk = "low"
+    regret_scenario = ""
+    tradeoff = ""
+
+    structured_prompt = (
+        f"Product: {top['title']} (₹{top['price']:,.0f})\n"
+        f"User use case: {intent.get('use_case') or 'general use'}\n"
+        f"User constraints: {', '.join(intent.get('constraints', [])) or 'none'}\n\n"
+        f"Return ONLY valid JSON:\n"
+        f'{{"regret_risk": "<low|medium|high>", '
+        f'"regret_scenario": "one specific realistic scenario", '
+        f'"tradeoff": "main tradeoff in one sentence"}}'
+    )
+
+    try:
+        resp = await _client.chat.completions.create(
+            model=_MODEL,
+            max_tokens=200,
+            messages=[
+                {"role": "system", "content": _REGRET_SYSTEM},
+                {"role": "user", "content": structured_prompt},
+            ],
+        )
+        raw = resp.choices[0].message.content.strip()
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group())
+            regret_risk = parsed.get("regret_risk", "low")
+            regret_scenario = parsed.get("regret_scenario", "")
+            tradeoff = parsed.get("tradeoff", "")
+    except Exception as exc:
+        print(f"[product_ranker] regret error: {exc}")
+
+    yield {
+        "type": "recommendation_done",
+        "reasoning": reasoning_text,
+        "regret_risk": regret_risk,
+        "regret_scenario": regret_scenario,
+        "tradeoff": tradeoff,
+    }
+
+
+async def _ai_elimination_reasons(intent: dict, products: list[dict]) -> list[dict]:
+    """Single LLM call to explain why each non-top product wasn't chosen."""
+    if not products:
+        return []
+
+    products_to_explain = products[:12]
+
+    product_list = "\n".join(
+        f"{i+1}. {p['title']} (₹{p['price']:,.0f}) — tags: {', '.join(p.get('tags', []))}"
+        for i, p in enumerate(products_to_explain)
+    )
+
+    _budget = ("₹" + f"{intent['budget_max']:,}") if intent.get("budget_max") else "not specified"
+    prompt = (
+        f"User wants: {intent.get('category', 'a product')} "
+        f"for {intent.get('use_case', 'general use')}.\n"
+        f"Budget: {_budget}.\n"
+        f"Constraints: {', '.join(intent.get('constraints', [])) or 'none'}.\n\n"
+        f"These products were NOT chosen as the best match. "
+        f"For each, write one short sentence (max 10 words) why:\n\n"
+        f"{product_list}\n\n"
+        f"Return ONLY a JSON array:\n"
+        f'[{{"title": "exact product name", "reason": "short reason"}}, ...]'
+    )
+
+    try:
+        resp = await _client.chat.completions.create(
+            model=_MODEL,
+            max_tokens=600,
+            messages=[
+                {"role": "system", "content": _ELIMINATION_SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        raw = resp.choices[0].message.content.strip()
+        match = re.search(r"\[.*\]", raw, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group())
+            price_map = {p["title"]: p["price"] for p in products_to_explain}
+            return [
+                {
+                    "title": item.get("title", ""),
+                    "price": price_map.get(item.get("title", ""), 0),
+                    "reason": item.get("reason", "Lower match score"),
+                }
+                for item in parsed
+                if item.get("title")
+            ]
+    except Exception as exc:
+        print(f"[product_ranker] ai_elimination error: {exc}")
+
+    # Fallback to deterministic
+    return _build_elimination_deterministic(intent, products_to_explain)
+
+
+def _build_elimination_deterministic(intent: dict, products: list[dict]) -> list[dict]:
     budget_max = intent.get("budget_max")
     use_case = (intent.get("use_case") or "").lower()
     constraints = [c.lower() for c in intent.get("constraints", [])]
-
-    result = []
-    for p in products[:24]:
-        reason = _reason_for_elimination(p, budget_max, use_case, constraints)
-        result.append({
+    return [
+        {
             "title": p["title"],
             "price": p["price"],
-            "reason": reason,
-        })
-
-    return result
+            "reason": _reason_for_elimination(p, budget_max, use_case, constraints),
+        }
+        for p in products
+    ]
 
 
 def _reason_for_elimination(product: dict, budget_max, use_case: str, constraints: list) -> str:
@@ -127,11 +229,9 @@ def _reason_for_elimination(product: dict, budget_max, use_case: str, constraint
     tags_str = " ".join(product.get("tags", [])).lower()
     desc = product.get("description", "").lower()
 
-    # 1. Budget check (most objective)
     if budget_max and price > budget_max:
         return f"Over budget (₹{price:,.0f})"
 
-    # 2. Constraint violations
     for constraint in constraints:
         if "flat feet" in constraint:
             if any(t in tags_str for t in ["minimalist", "barefoot", "zero-drop", "zero drop"]):
@@ -143,13 +243,9 @@ def _reason_for_elimination(product: dict, budget_max, use_case: str, constraint
             if "road" in tags_str and "trail" not in tags_str:
                 return "Road shoe — not suitable for trails"
 
-    # 3. Use case mismatch
     if use_case:
         use_case_words = [w for w in use_case.split() if len(w) > 3]
-        if use_case_words:
-            match = any(w in tags_str or w in desc for w in use_case_words)
-            if not match:
-                return "Use case mismatch"
+        if use_case_words and not any(w in tags_str or w in desc for w in use_case_words):
+            return "Use case mismatch"
 
-    # 4. Default: lower confidence score
     return "Lower overall match score"

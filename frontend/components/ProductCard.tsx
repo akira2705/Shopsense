@@ -1,13 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ShoppingCart, AlertCircle, TrendingUp } from "lucide-react";
+import { ExternalLink, AlertCircle, TrendingUp, Star } from "lucide-react";
 import Image from "next/image";
 import EliminationPanel from "./EliminationPanel";
 import type { RecommendationData } from "@/lib/api";
 
 interface Props {
   data: RecommendationData;
+  isStreaming?: boolean;
 }
 
 const REGRET_CONFIG = {
@@ -31,15 +32,30 @@ const REGRET_CONFIG = {
   },
 };
 
-export default function ProductCard({ data }: Props) {
+export default function ProductCard({ data, isStreaming = false }: Props) {
   const { product, reasoning, regret_risk, regret_scenario, tradeoff, confidence_score, elimination } = data;
   const regret = REGRET_CONFIG[regret_risk] || REGRET_CONFIG.low;
 
-  const handleAddToCart = async () => {
-    if (!product.variant_id) return;
-    // Cart URL is generated server-side; for demo we open a Shopify cart URL
-    // In full implementation: call /api/cart endpoint to get checkout URL
-    window.open(`https://checkout.shopify.com`, "_blank");
+  const SOURCE_LABELS: Record<string, string> = {
+    amazon:   "Amazon.in",
+    flipkart: "Flipkart",
+    carwale:  "CarWale",
+    olx:      "OLX",
+  };
+
+  const SOURCE_SEARCH_URLS: Record<string, string> = {
+    amazon:   `https://www.amazon.in/s?k=${encodeURIComponent(product.title)}`,
+    flipkart: `https://www.flipkart.com/search?q=${encodeURIComponent(product.title)}`,
+    carwale:  `https://www.carwale.com/search/?q=${encodeURIComponent(product.title)}`,
+    olx:      `https://www.olx.in/items/q-${encodeURIComponent(product.title)}`,
+  };
+
+  const sourceKey = product.source || "amazon";
+  const sourceLabel = SOURCE_LABELS[sourceKey] || sourceKey;
+  const sourceUrl = SOURCE_SEARCH_URLS[sourceKey] || SOURCE_SEARCH_URLS.amazon;
+
+  const handleViewProduct = () => {
+    window.open(sourceUrl, "_blank");
   };
 
   return (
@@ -84,19 +100,40 @@ export default function ProductCard({ data }: Props) {
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
               {confidence_score}% confidence
             </span>
+            {product.source && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                {sourceLabel}
+              </span>
+            )}
           </div>
 
           {/* Name + price */}
           <p className="font-semibold text-sm text-gray-900 dark:text-white leading-tight mb-0.5">
             {product.title}
           </p>
-          <p className="text-sm text-gray-500 mb-2.5">
-            ₹{product.price.toLocaleString("en-IN")}
-          </p>
+          <div className="flex items-center gap-2 mb-2.5">
+            <p className="text-sm text-gray-500">
+              ₹{product.price.toLocaleString("en-IN")}
+            </p>
+            {product.rating && (
+              <span className="flex items-center gap-0.5 text-xs text-amber-500 font-medium">
+                <Star size={10} className="fill-amber-400 text-amber-400" />
+                {product.rating.toFixed(1)}
+                {product.review_count && (
+                  <span className="text-gray-400 font-normal ml-0.5">
+                    ({product.review_count.toLocaleString("en-IN")})
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
 
           {/* Reasoning */}
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2.5">
-            {reasoning}
+            {reasoning || (isStreaming ? "" : "Analysing match…")}
+            {isStreaming && (
+              <span className="inline-block w-0.5 h-3 bg-indigo-500 ml-0.5 animate-pulse align-middle" />
+            )}
           </p>
 
           {/* Tradeoff */}
@@ -121,11 +158,11 @@ export default function ProductCard({ data }: Props) {
           <div />
         )}
         <button
-          onClick={handleAddToCart}
+          onClick={handleViewProduct}
           className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg transition-all flex-shrink-0"
         >
-          <ShoppingCart size={12} />
-          Add to cart
+          <ExternalLink size={12} />
+          View on {sourceLabel}
         </button>
       </div>
 

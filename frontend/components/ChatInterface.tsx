@@ -32,6 +32,7 @@ export default function ChatInterface() {
   const [confidence, setConfidence] = useState(0);
   const [breakdown, setBreakdown] = useState<ConfidenceBreakdown | null>(null);
   const [journey, setJourney] = useState<JourneyStep[]>([]);
+  const [isStreamingReasoning, setIsStreamingReasoning] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -92,6 +93,7 @@ export default function ChatInterface() {
             }
             break;
 
+          // legacy recommendation event (fallback)
           case "recommendation":
             if (event.product) {
               addRecommendation({
@@ -104,6 +106,75 @@ export default function ChatInterface() {
                 elimination: event.elimination || [],
               });
             }
+            break;
+
+          // A: streaming recommendation — step 1: product card with empty reasoning
+          case "recommendation_start":
+            if (event.product) {
+              setIsStreamingReasoning(true);
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "agent",
+                  content: "",
+                  type: "recommendation",
+                  recommendation: {
+                    product: event.product!,
+                    reasoning: "",
+                    regret_risk: "low",
+                    regret_scenario: "",
+                    tradeoff: "",
+                    confidence_score: event.confidence_score || confidence,
+                    elimination: event.elimination || [],
+                  },
+                },
+              ]);
+            }
+            break;
+
+          // A: streaming reasoning token — append to last recommendation
+          case "token":
+            if (event.text) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].type === "recommendation" && updated[i].recommendation) {
+                    updated[i] = {
+                      ...updated[i],
+                      recommendation: {
+                        ...updated[i].recommendation!,
+                        reasoning: updated[i].recommendation!.reasoning + event.text,
+                      },
+                    };
+                    break;
+                  }
+                }
+                return updated;
+              });
+            }
+            break;
+
+          // A: streaming done — patch in regret_risk / tradeoff
+          case "recommendation_done":
+            setIsStreamingReasoning(false);
+            setMessages((prev) => {
+              const updated = [...prev];
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].type === "recommendation" && updated[i].recommendation) {
+                  updated[i] = {
+                    ...updated[i],
+                    recommendation: {
+                      ...updated[i].recommendation!,
+                      regret_risk: event.regret_risk || "low",
+                      regret_scenario: event.regret_scenario || "",
+                      tradeoff: event.tradeoff || "",
+                    },
+                  };
+                  break;
+                }
+              }
+              return updated;
+            });
             break;
 
           case "error":
@@ -135,6 +206,7 @@ export default function ChatInterface() {
     setBreakdown(null);
     setJourney([]);
     setInput("");
+    setIsStreamingReasoning(false);
     inputRef.current?.focus();
   }, [sessionId]);
 
@@ -216,7 +288,10 @@ export default function ChatInterface() {
                 <div className={`max-w-[80%] ${msg.role === "user" ? "items-end flex flex-col" : ""}`}>
                   {msg.type === "recommendation" && msg.recommendation ? (
                     <div className="w-full max-w-md">
-                      <ProductCard data={msg.recommendation} />
+                      <ProductCard
+                        data={msg.recommendation}
+                        isStreaming={isStreamingReasoning && i === messages.length - 1}
+                      />
                     </div>
                   ) : msg.content ? (
                     <div
