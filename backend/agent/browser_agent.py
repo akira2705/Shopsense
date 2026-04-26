@@ -616,11 +616,38 @@ def _get_demo_products(site: str, intent: dict) -> list[dict]:
     """Return curated demo products filtered loosely by intent when live browsing fails."""
     pool = list(_DEMO_PRODUCTS.get(site, _DEMO_PRODUCTS["amazon"]))
 
-    # Light keyword filter so demo products feel relevant
     category = (intent.get("category") or "").lower()
     use_case = (intent.get("use_case") or "").lower()
     constraints_text = " ".join(intent.get("constraints") or []).lower()
-    keywords = [w for w in (category + " " + use_case + " " + constraints_text).split() if len(w) > 2]
+    intent_text = category + " " + use_case + " " + constraints_text
+
+    # ── Hard type filter — prevent cross-category pollution ─────────────────
+    # e.g. never return a scooter when the user asked for a car
+    _car_words   = {"car", "cars", "sedan", "suv", "hatchback", "vehicle"}
+    _bike_words  = {"bike", "bikes", "motorcycle", "scooter", "activa", "splendor", "pulsar"}
+    _phone_words = {"phone", "smartphone", "mobile", "iphone", "samsung"}
+
+    wants_car   = any(w in intent_text for w in _car_words)
+    wants_bike  = any(w in intent_text for w in _bike_words)
+    wants_phone = any(w in intent_text for w in _phone_words)
+
+    def _is_car(p):   return any(t in p["tags"] for t in ["car", "sedan", "suv", "hatchback"])
+    def _is_bike(p):  return any(t in p["tags"] for t in ["bike", "motorcycle", "scooter", "activa"])
+    def _is_phone(p): return any(t in p["tags"] for t in ["iphone", "smartphone", "samsung", "mobile"])
+
+    if wants_car and not wants_bike:
+        pool = [p for p in pool if not _is_bike(p) and not _is_phone(p)]
+    elif wants_bike and not wants_car:
+        pool = [p for p in pool if not _is_car(p) and not _is_phone(p)]
+    elif wants_phone:
+        pool = [p for p in pool if not _is_car(p) and not _is_bike(p)]
+
+    # If hard filter wiped everything, go back to full pool (better than empty)
+    if not pool:
+        pool = list(_DEMO_PRODUCTS.get(site, _DEMO_PRODUCTS["amazon"]))
+
+    # ── Keyword score — rank remaining products by relevance ─────────────────
+    keywords = [w for w in intent_text.split() if len(w) > 2]
 
     if keywords:
         scored = []
@@ -629,7 +656,7 @@ def _get_demo_products(site: str, intent: dict) -> list[dict]:
             hits = sum(1 for k in keywords if k in text)
             scored.append((hits, p))
         scored.sort(key=lambda x: x[0], reverse=True)
-        # Return top matches; fall back to full pool if nothing matched
+        # Only use filtered list if at least one product matched at least 1 keyword
         filtered = [p for hits, p in scored if hits > 0]
         pool = filtered if filtered else pool
 

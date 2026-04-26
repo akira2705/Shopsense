@@ -58,6 +58,7 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
     elimination = await _ai_elimination_reasons(intent, scored[1:])
 
     # Emit recommendation_start with product info + elimination (reasoning streams after)
+    # IMPORTANT: preserve source, rating, review_count, url — used by ProductCard
     yield {
         "type": "recommendation_start",
         "product": {
@@ -67,6 +68,10 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
             "image_url": top.get("image_url"),
             "variant_id": top.get("variant_id"),
             "tags": top.get("tags", []),
+            "source": top.get("source"),          # "amazon"|"flipkart"|"carwale"|"olx"
+            "rating": top.get("rating"),
+            "review_count": top.get("review_count"),
+            "url": top.get("url"),                # direct product URL
         },
         "confidence_score": top["_score"],
         "elimination": elimination,
