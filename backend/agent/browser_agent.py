@@ -30,6 +30,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024 model, 1.2L petrol, 23.76 kmpl, 6 airbags, sunroof, Apple CarPlay",
             "tags": ["new", "car", "hatchback", "petrol", "maruti", "swift", "city", "daily"],
             "price": 899000, "rating": 4.5, "review_count": 8200,
+            "review_highlight": "Best mileage in the hatchback segment",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/maruti-suzuki-cars/swift/",
         },
@@ -38,6 +39,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024 model, automatic, 20.35 kmpl, 6 airbags, wireless charging, rear camera",
             "tags": ["new", "car", "hatchback", "petrol", "hyundai", "i20", "automatic", "city"],
             "price": 1020000, "rating": 4.4, "review_count": 5600,
+            "review_highlight": "Premium cabin feel, smooth IVT gearbox",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/hyundai-cars/i20/",
         },
@@ -46,6 +48,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024 CNG, 26.99 km/kg, micro-SUV, high ground clearance, safety rated 5-star",
             "tags": ["new", "car", "suv", "cng", "tata", "punch", "city", "family"],
             "price": 820000, "rating": 4.3, "review_count": 4100,
+            "review_highlight": "CNG savings are real, 5-star safety a bonus",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/tata-cars/punch/",
         },
@@ -54,6 +57,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024 sedan, automatic, 20.1 kmpl, rear AC, sunroof, lane-watch camera",
             "tags": ["new", "car", "sedan", "petrol", "honda", "amaze", "automatic", "family"],
             "price": 1220000, "rating": 4.4, "review_count": 3800,
+            "review_highlight": "Best automatic sedan under 15 lakhs",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/honda-cars/amaze/",
         },
@@ -62,6 +66,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 1.0L petrol, 24.39 kmpl, lightest in segment, easy city driving",
             "tags": ["new", "car", "hatchback", "petrol", "maruti", "alto", "city", "budget"],
             "price": 540000, "rating": 4.1, "review_count": 11000,
+            "review_highlight": "Easiest to park, cheapest to maintain",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/maruti-suzuki-cars/alto-k10/",
         },
@@ -70,6 +75,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 199.5cc, 24.5 bhp, liquid-cooled, single-channel ABS, sporty naked",
             "tags": ["new", "bike", "motorcycle", "bajaj", "pulsar", "sports", "commute"],
             "price": 153000, "rating": 4.5, "review_count": 7400,
+            "review_highlight": "Raw performance, turns heads everywhere",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/bajaj-bikes/pulsar-ns200/",
         },
@@ -78,6 +84,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 97.2cc, 60+ kmpl, USB charging, Bluetooth connectivity, most sold bike India",
             "tags": ["new", "bike", "motorcycle", "hero", "splendor", "commute", "mileage", "city"],
             "price": 82000, "rating": 4.3, "review_count": 22000,
+            "review_highlight": "60+ kmpl still holds up after 2 years",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/hero-bikes/splendor-plus/",
         },
@@ -86,6 +93,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024 compact SUV, automatic, panoramic sunroof, ADAS safety, 17.4 kmpl",
             "tags": ["new", "car", "suv", "petrol", "hyundai", "creta", "automatic", "family", "highway"],
             "price": 1980000, "rating": 4.6, "review_count": 6100,
+            "review_highlight": "Feels premium, ADAS works on highways",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/hyundai-cars/creta/",
         },
@@ -95,6 +103,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater MPV, 2.4L diesel, 15.1 kmpl, captain seats, most trusted family MPV",
             "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "diesel", "toyota", "innova", "family", "road trip", "highway", "spacious"],
             "price": 1990000, "rating": 4.7, "review_count": 14200,
+            "review_highlight": "Still the benchmark for family road trips",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/toyota-cars/innova-crysta/",
         },
@@ -103,6 +112,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater MPV, CNG + petrol, 26.11 km/kg, best-value people carrier",
             "tags": ["new", "car", "mpv", "7 seater", "7-seater", "cng", "maruti", "ertiga", "family", "spacious", "budget"],
             "price": 1070000, "rating": 4.3, "review_count": 9800,
+            "review_highlight": "7 seats for the price of a compact sedan",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/maruti-suzuki-cars/ertiga/",
         },
@@ -111,6 +121,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater, automatic, panoramic sunroof, ADAS, 360 camera, premium MPV",
             "tags": ["new", "car", "mpv", "7 seater", "7-seater", "diesel", "kia", "carens", "automatic", "family", "premium"],
             "price": 2030000, "rating": 4.5, "review_count": 6700,
+            "review_highlight": "Modern MPV with genuinely good tech",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/kia-cars/carens/",
         },
@@ -119,6 +130,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater SUV, 2.8L diesel, 10 kmpl, legendary off-road, full-size body-on-frame",
             "tags": ["new", "car", "suv", "7 seater", "7-seater", "diesel", "toyota", "fortuner", "automatic", "premium", "highway", "off road"],
             "price": 4650000, "rating": 4.8, "review_count": 5200,
+            "review_highlight": "Road presence is unmatched, feels unstoppable",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/toyota-cars/fortuner/",
         },
@@ -127,6 +139,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater, ADAS Level 2, panoramic sunroof, 360 camera, 18.15 kmpl",
             "tags": ["new", "car", "suv", "7 seater", "7-seater", "diesel", "mahindra", "xuv700", "automatic", "family", "premium", "highway"],
             "price": 2690000, "rating": 4.6, "review_count": 8400,
+            "review_highlight": "ADAS Level 2 at this price is incredible",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/mahindra-cars/xuv700/",
         },
@@ -135,6 +148,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater strong hybrid MPV, 21.1 kmpl, panoramic sunroof, ADAS, otto mode, premium cabin",
             "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "hybrid", "hycross", "innova hycross", "toyota", "automatic", "cvt", "family", "premium", "fuel efficient", "safety"],
             "price": 3490000, "rating": 4.8, "review_count": 7100,
+            "review_highlight": "Best hybrid MPV in India, period",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/toyota-cars/innova-hycross/",
         },
@@ -143,6 +157,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "2024, 7-seater MPV petrol CVT, 16.13 kmpl, captain seats, cruise control, entry-level HyCross",
             "tags": ["new", "car", "mpv", "muv", "7 seater", "7-seater", "petrol", "hycross", "innova hycross", "toyota", "automatic", "cvt", "family"],
             "price": 1960000, "rating": 4.6, "review_count": 5400,
+            "review_highlight": "Entry HyCross but feels anything but entry",
             "image_url": None, "variant_id": None, "source": "carwale",
             "url": "https://www.carwale.com/toyota-cars/innova-hycross/",
         },
@@ -155,6 +170,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "45000 km, first owner, diesel, excellent condition, all papers clear",
             "tags": ["used", "car", "hatchback", "diesel", "maruti", "swift", "second hand"],
             "price": 480000, "rating": 4.3, "review_count": None,
+            "review_highlight": "Papers clear, engine smooth, no surprises",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/cars_c84",
         },
@@ -163,6 +179,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "52000 km, second owner, petrol, new tyres, accident-free",
             "tags": ["used", "car", "hatchback", "petrol", "hyundai", "i20", "second hand"],
             "price": 450000, "rating": 4.1, "review_count": None,
+            "review_highlight": "New tyres, drives like it's newer",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/cars_c84",
         },
@@ -171,6 +188,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "68000 km, first owner, petrol automatic, sunroof, full service history",
             "tags": ["used", "car", "sedan", "petrol", "honda", "city", "automatic", "second hand"],
             "price": 620000, "rating": 4.4, "review_count": None,
+            "review_highlight": "Full service history, sunroof still works perfectly",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/cars_c84",
         },
@@ -179,6 +197,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "38000 km, first owner, petrol, 5-star safety, sunroof, reverse camera",
             "tags": ["used", "car", "suv", "petrol", "tata", "nexon", "second hand"],
             "price": 890000, "rating": 4.5, "review_count": None,
+            "review_highlight": "5-star safety for this price is a steal",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/cars_c84",
         },
@@ -187,6 +206,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "18000 km, first owner, single owner, well maintained, genuine colour",
             "tags": ["used", "bike", "motorcycle", "royal enfield", "classic", "cruiser", "second hand"],
             "price": 145000, "rating": 4.4, "review_count": None,
+            "review_highlight": "Well maintained single owner, sounds amazing",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/motorcycles_c107",
         },
@@ -195,6 +215,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "12000 km, first owner, OBD2 compliant, good mileage, scratch-free",
             "tags": ["used", "scooter", "activa", "honda", "city", "daily", "second hand"],
             "price": 65000, "rating": 4.2, "review_count": None,
+            "review_highlight": "Looks almost new, not a single scratch",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/motorcycles_c107",
         },
@@ -203,6 +224,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "10 months old, excellent condition, all accessories, battery 94%",
             "tags": ["used", "iphone", "smartphone", "apple", "mobile", "second hand"],
             "price": 42000, "rating": 4.5, "review_count": None,
+            "review_highlight": "Battery at 94%, all original accessories included",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/mobile-phones_c339",
         },
@@ -211,6 +233,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "8 months old, no scratches, original box, charger included",
             "tags": ["used", "samsung", "smartphone", "android", "5g", "mobile", "second hand"],
             "price": 32000, "rating": 4.1, "review_count": None,
+            "review_highlight": "Original box, no scratches, like new",
             "image_url": None, "variant_id": None, "source": "olx",
             "url": "https://www.olx.in/mobile-phones_c339",
         },
@@ -224,6 +247,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Road running, Air Zoom cushioning, responsive plate, breathable mesh",
             "tags": ["running", "shoes", "road", "cushioned", "nike", "daily", "training"],
             "price": 9995, "rating": 4.5, "review_count": 14200,
+            "review_highlight": "Everyday trainer that never lets you down",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=nike+running+shoes",
         },
@@ -232,6 +256,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Ultra-lightweight everyday trainer, flat feet friendly, wide toe box, shock-absorbing",
             "tags": ["running", "shoes", "road", "lightweight", "flat feet", "skechers", "daily"],
             "price": 3999, "rating": 4.2, "review_count": 6700,
+            "review_highlight": "Best for flat feet, no knee pain after runs",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=skechers+running+shoes",
         },
@@ -240,6 +265,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Trail running, Nitro foam, aggressive grip outsole, waterproof upper",
             "tags": ["running", "shoes", "trail", "grip", "puma", "waterproof", "outdoor"],
             "price": 5999, "rating": 4.3, "review_count": 4200,
+            "review_highlight": "Grip holds even on wet muddy trails",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=puma+trail+running+shoes",
         },
@@ -248,6 +274,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Premium daily trainer, GEL cushioning, excellent arch support, flat feet",
             "tags": ["running", "shoes", "road", "cushioned", "asics", "flat feet", "arch support"],
             "price": 12999, "rating": 4.6, "review_count": 3100,
+            "review_highlight": "Worth every rupee for flat feet runners",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=asics+running+shoes",
         },
@@ -257,6 +284,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Lightweight daily moisturiser for oily skin, non-comedogenic, SPF protection",
             "tags": ["skincare", "moisturiser", "oily skin", "spf", "neutrogena", "daily", "face"],
             "price": 799, "rating": 4.5, "review_count": 31000,
+            "review_highlight": "Non-greasy, absorbs instantly on oily skin",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=neutrogena+moisturiser",
         },
@@ -265,6 +293,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Controls oil, reduces pores and dark spots, suitable for oily and acne-prone skin",
             "tags": ["skincare", "serum", "niacinamide", "oily skin", "acne", "minimalist", "face"],
             "price": 599, "rating": 4.4, "review_count": 48000,
+            "review_highlight": "Pores visibly reduced in 2 weeks",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=minimalist+niacinamide",
         },
@@ -273,6 +302,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Dermatologist recommended, for dry and sensitive skin, fragrance-free, non-greasy",
             "tags": ["skincare", "moisturiser", "dry skin", "sensitive", "cetaphil", "face", "body"],
             "price": 549, "rating": 4.5, "review_count": 62000,
+            "review_highlight": "Dermatologist told me to use this, it works",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=cetaphil+moisturiser",
         },
@@ -282,6 +312,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "200MP periscope camera, 120W fast charging, AMOLED, Snapdragon 7s Gen 2",
             "tags": ["smartphone", "android", "5g", "camera", "redmi", "xiaomi", "fast charging"],
             "price": 26999, "rating": 4.4, "review_count": 18000,
+            "review_highlight": "200MP camera shocked me at this price",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=redmi+note+13+pro+plus",
         },
@@ -290,6 +321,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "6000mAh battery, 50MP camera, 5G, sAMOLED display, water-resistant",
             "tags": ["smartphone", "android", "5g", "battery", "samsung", "camera"],
             "price": 15999, "rating": 4.4, "review_count": 38000,
+            "review_highlight": "6000mAh lasts 2 full days easily",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=samsung+galaxy+m34",
         },
@@ -299,6 +331,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Latex loop bands, 5 resistance levels, for home workout, stretching, physiotherapy",
             "tags": ["gym", "fitness", "workout", "resistance bands", "home gym", "training"],
             "price": 499, "rating": 4.3, "review_count": 29000,
+            "review_highlight": "Great for home workouts, haven't snapped yet",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=resistance+bands",
         },
@@ -307,15 +340,17 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Cast iron, rubber coating, adjustable weight, anti-roll hexagonal, home gym",
             "tags": ["gym", "fitness", "dumbbell", "weights", "home gym", "training", "strength"],
             "price": 1999, "rating": 4.2, "review_count": 11000,
+            "review_highlight": "Rubber coating is durable, plates don't slip",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=adjustable+dumbbell",
         },
-        # Laptop bags / accessories
+        # Storage
         {
             "id": "amz_12", "title": "WD 1TB My Passport Portable SSD",
             "description": "256-bit AES encryption, USB-C, 1050 MB/s, compact, password protected",
             "tags": ["storage", "ssd", "portable", "wd", "laptop", "backup", "work"],
             "price": 6999, "rating": 4.6, "review_count": 8400,
+            "review_highlight": "Fast, compact, reliable — using it daily",
             "image_url": None, "variant_id": None, "source": "amazon",
             "url": "https://www.amazon.in/s?k=wd+portable+ssd",
         },
@@ -329,6 +364,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" FHD, 8GB RAM, 512GB SSD, Windows 11, Office H&S 2021, 3-cell battery",
             "tags": ["laptop", "lenovo", "ideapad", "ryzen", "student", "work", "office", "college"],
             "price": 42990, "rating": 4.3, "review_count": 22000,
+            "review_highlight": "Office work and coding, handles everything well",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=lenovo+ideapad+slim+3",
         },
@@ -337,6 +373,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" FHD, 8GB RAM, 512GB SSD, Intel UHD graphics, lightweight, good battery",
             "tags": ["laptop", "hp", "intel", "i3", "student", "work", "office", "daily"],
             "price": 37990, "rating": 4.2, "review_count": 31000,
+            "review_highlight": "Light, great battery, perfect for students",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=hp+15s+laptop",
         },
@@ -345,6 +382,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" FHD, 8GB RAM, 512GB SSD, thin & light, fingerprint sensor, fast boot",
             "tags": ["laptop", "asus", "vivobook", "ryzen", "thin", "light", "student", "college"],
             "price": 44990, "rating": 4.4, "review_count": 17000,
+            "review_highlight": "Fast boot, thin build, fingerprint is snappy",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=asus+vivobook+15",
         },
@@ -354,6 +392,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4060 8GB, Ryzen 7 7745HX, 16GB DDR5 RAM, 512GB NVMe SSD",
             "tags": ["laptop", "gaming", "asus", "rog", "nvidia", "rtx", "rtx 4060", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen", "ddr5"],
             "price": 89990, "rating": 4.5, "review_count": 6200,
+            "review_highlight": "RTX 4060 handles 1080p max settings easily",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=asus+rog+rtx+4060+gaming+laptop",
         },
@@ -362,6 +401,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050 6GB, Intel i5-13420H, 16GB DDR5 RAM, 512GB SSD",
             "tags": ["laptop", "gaming", "lenovo", "loq", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen"],
             "price": 69990, "rating": 4.4, "review_count": 8900,
+            "review_highlight": "Best price-to-performance gaming laptop right now",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=lenovo+loq+rtx+4050",
         },
@@ -370,6 +410,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050 6GB, AMD Ryzen 5 7535HS, 16GB RAM, 512GB SSD, good thermals",
             "tags": ["laptop", "gaming", "hp", "victus", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen"],
             "price": 64990, "rating": 4.3, "review_count": 11200,
+            "review_highlight": "Great thermals, quiet under gaming load",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=hp+victus+rtx+4050",
         },
@@ -378,6 +419,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050, Intel i7-12650H, 16GB DDR4 RAM, 512GB NVMe, thin build",
             "tags": ["laptop", "gaming", "msi", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen", "thin"],
             "price": 59990, "rating": 4.2, "review_count": 5700,
+            "review_highlight": "Thin but powerful, GPU runs a bit hot",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=msi+thin+gf63+rtx",
         },
@@ -387,6 +429,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Industry-best noise cancelling, 30hr battery, multipoint, LDAC, premium comfort",
             "tags": ["headphone", "wireless", "anc", "noise cancelling", "sony", "premium", "music"],
             "price": 24990, "rating": 4.7, "review_count": 8900,
+            "review_highlight": "ANC blocks out everything, even AC noise",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=sony+wh1000xm5",
         },
@@ -395,6 +438,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "50hr playtime, 40mm drivers, foldable, quick charge, ASAP charging",
             "tags": ["headphone", "bluetooth", "wireless", "boat", "music", "bass", "budget"],
             "price": 1499, "rating": 4.1, "review_count": 95000,
+            "review_highlight": "50 hours battery life is genuinely impressive",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=boat+rockerz+550",
         },
@@ -404,6 +448,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Crystal Processor 4K, PurColor, HDR, Tizen OS, built-in Alexa",
             "tags": ["tv", "television", "samsung", "4k", "smart", "uhd", "43 inch", "living room"],
             "price": 32990, "rating": 4.4, "review_count": 41000,
+            "review_highlight": "Colors pop, Tizen OS runs smooth",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=samsung+43+inch+4k+tv",
         },
@@ -412,6 +457,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Quantum dot display, Dolby Vision, 30W speakers, Android TV, 4K upscaling",
             "tags": ["tv", "television", "xiaomi", "mi", "4k", "qled", "smart", "43 inch"],
             "price": 29999, "rating": 4.3, "review_count": 26000,
+            "review_highlight": "Quantum dot display at this price is unreal",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=mi+43+inch+qled+tv",
         },
@@ -421,6 +467,7 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "description": "Curd Maestro, Digital Inverter, Convertible 5-in-1, All-Around Cooling",
             "tags": ["refrigerator", "fridge", "samsung", "double door", "frost free", "kitchen"],
             "price": 24990, "rating": 4.4, "review_count": 19000,
+            "review_highlight": "Convertible modes are genuinely useful",
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=samsung+refrigerator+double+door",
         },
@@ -448,7 +495,7 @@ _VISION_MODEL = "llama-3.2-90b-vision-preview"
 _SEARCH_URLS = {
     "amazon":   "https://www.amazon.in/s?k={query}",
     "flipkart": "https://www.flipkart.com/search?q={query}",
-    "carwale":  "https://www.carwale.com/new-cars/?q={query}",
+    "carwale":  "https://www.carwale.com/search/?q={query}",
     "olx":      "https://www.olx.in/items/q-{query}",
 }
 
@@ -555,7 +602,7 @@ def _pick_site(intent: dict) -> str:
 
 
 def _build_query(intent: dict) -> str:
-    """Build a specific search query — include model names, key constraints, use_case."""
+    """Build a specific search query — include category, use_case, constraints, and budget."""
     parts = []
 
     category = (intent.get("category") or "").strip()
@@ -570,9 +617,17 @@ def _build_query(intent: dict) -> str:
     # Include short hard constraints that narrow the search (seating, fuel, body type)
     for c in (intent.get("constraints") or [])[:3]:
         c_stripped = c.strip()
-        # Only add short, search-friendly constraints
         if c_stripped and len(c_stripped) < 25 and c_stripped.lower() not in " ".join(parts).lower():
             parts.append(c_stripped)
+
+    # Append budget as a search hint — sites like Flipkart and Amazon filter by it
+    budget_max = intent.get("budget_max")
+    if budget_max:
+        if budget_max >= 100000:
+            lakhs = budget_max / 100000
+            parts.append(f"under {lakhs:.0f} lakh")
+        else:
+            parts.append(f"under {int(budget_max)}")
 
     return " ".join(p for p in parts if p) or "products"
 
@@ -580,19 +635,38 @@ def _build_query(intent: dict) -> str:
 # ── Site-specific wait selectors (what to wait for before screenshotting) ──
 
 _WAIT_SELECTORS = {
-    "amazon":   "[data-component-type='s-search-result']",   # product card
-    "flipkart": "._1AtVbE",                                  # product tile
+    "amazon":   "[data-component-type='s-search-result']",
+    "flipkart": "._1AtVbE",
     "carwale":  ".gsc-search-result, .listing-card, [class*='car-card'], [class*='CarCard']",
-    "olx":      "[data-aut-id='itemBox'], .EIR5N",           # OLX listing card
+    "olx":      "[data-aut-id='itemBox'], .EIR5N",
+}
+
+# ── Site-specific image selectors (DOM extraction — more reliable than vision for images) ──
+
+_IMAGE_SELECTORS = {
+    "amazon":   "[data-component-type='s-search-result'] img.s-image",
+    "flipkart": "._1AtVbE img, .CXW8mj img, ._396cs4 img",
+    "carwale":  "[class*='card'] img, [class*='Card'] img, [class*='listing'] img",
+    "olx":      "[data-aut-id='itemBox'] img, .EIR5N img",
 }
 
 # ── Browser + screenshot ────────────────────────────────────────────────────
 
-async def _browse_and_extract(url: str, site: str) -> list[dict]:
+async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]:
     """
     Launch a stealth browser, scroll through the page in 3 steps,
-    extract products from each scroll position, deduplicate, return combined list.
+    extract products from each scroll position + image URLs from DOM,
+    deduplicate, and return the combined list.
+
+    on_status: optional async callable(text: str) — called with live status updates
     """
+    async def _status_cb(text: str):
+        if on_status:
+            try:
+                await on_status(text)
+            except Exception:
+                pass
+
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
@@ -649,9 +723,10 @@ async def _browse_and_extract(url: str, site: str) -> list[dict]:
 
             # ── Take 3 screenshots at different scroll depths ──────────────
             screenshots_b64 = []
-            scroll_positions = [0, 900, 1800]   # top, middle, lower section
+            scroll_positions = [0, 900, 1800]
 
-            for scroll_y in scroll_positions:
+            for i, scroll_y in enumerate(scroll_positions):
+                await _status_cb(f"Reading results — section {i + 1} of {len(scroll_positions)}…")
                 await page.evaluate(f"window.scrollTo(0, {scroll_y})")
                 await page.wait_for_timeout(600)
                 shot = await page.screenshot(type="jpeg", quality=75, full_page=False)
@@ -659,9 +734,39 @@ async def _browse_and_extract(url: str, site: str) -> list[dict]:
                 screenshots_b64.append(b64)
                 print(f"[browser_agent] screenshot at scroll={scroll_y} ({len(b64)//1024}KB)")
 
+            # ── Extract product image URLs directly from the DOM ───────────
+            img_urls: list[str] = []
+            try:
+                img_sel = _IMAGE_SELECTORS.get(site, "")
+                if img_sel:
+                    # Escape single quotes for JS string
+                    js_sel = img_sel.replace("'", "\\'")
+                    img_urls = await page.evaluate(f"""
+                        () => {{
+                            const imgs = document.querySelectorAll('{js_sel}');
+                            return Array.from(imgs)
+                                .map(img =>
+                                    img.src ||
+                                    img.getAttribute('data-src') ||
+                                    img.getAttribute('data-lazy-src') || ''
+                                )
+                                .filter(src =>
+                                    src &&
+                                    src.startsWith('http') &&
+                                    !src.includes('data:image/gif') &&
+                                    !src.includes('placeholder') &&
+                                    src.length > 30
+                                );
+                        }}
+                    """)
+                    print(f"[browser_agent] {len(img_urls)} image URLs extracted from DOM")
+            except Exception as img_err:
+                print(f"[browser_agent] image URL extraction failed: {img_err}")
+
             await browser.close()
 
         # ── Extract products from each screenshot, deduplicate ─────────────
+        await _status_cb("AI vision reading products…")
         all_products: list[dict] = []
         seen_titles: set[str] = set()
 
@@ -675,6 +780,11 @@ async def _browse_and_extract(url: str, site: str) -> list[dict]:
                     all_products.append(p)
                     new_count += 1
             print(f"[browser_agent] scroll {i}: {new_count} new products (total {len(all_products)})")
+
+        # ── Attach image URLs to products by position on page ─────────────
+        for i, p in enumerate(all_products):
+            if i < len(img_urls) and not p.get("image_url"):
+                p["image_url"] = img_urls[i]
 
         print(f"[browser_agent] ✓ {len(all_products)} unique products extracted")
         return all_products
@@ -748,11 +858,42 @@ def _status(text: str) -> dict:
     return {"type": "status", "text": text}
 
 
+def _sanity_filter(products: list[dict], intent: dict) -> list[dict]:
+    """
+    Remove products with clearly impossible prices for the category.
+    Prevents vision misreads (e.g. EMI ₹12,499/mo read as full car price).
+    Always returns at least one product — falls back to full list if everything is filtered.
+    """
+    category = (intent.get("category") or "").lower()
+
+    def _min_price(p: dict) -> int:
+        tags_text = " ".join(p.get("tags", [])).lower()
+        title_text = p.get("title", "").lower()
+        combined = category + " " + tags_text + " " + title_text
+
+        if any(w in combined for w in ["car", "suv", "sedan", "hatchback", "mpv", "muv"]):
+            return 50000
+        if any(w in combined for w in ["bike", "motorcycle"]):
+            return 5000
+        if any(w in combined for w in ["laptop", "notebook"]):
+            return 8000
+        if any(w in combined for w in ["smartphone", "phone", "iphone"]):
+            return 2000
+        if any(w in combined for w in ["tv", "television", "refrigerator", "washing machine"]):
+            return 3000
+        return 50   # for accessories, skincare, etc.
+
+    filtered = [p for p in products if p.get("price", 0) >= _min_price(p)]
+    return filtered if filtered else products
+
+
 async def search_products_stream(intent: dict, limit: int = 15):
     """
     Async generator — yields status dicts then a final products dict.
-    Use in main.py to stream live status to the frontend.
+    Streams live status from inside the browser loop via asyncio Queue.
     """
+    import asyncio
+
     site = _pick_site(intent)
     query = _build_query(intent)
     site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
@@ -760,10 +901,32 @@ async def search_products_stream(intent: dict, limit: int = 15):
     url = _SEARCH_URLS[site].format(query=query.replace(" ", "+"))
 
     yield _status(f"Opening {label}…")
-    products = await _browse_and_extract(url, site)
+
+    # ── Stream live status from browser via asyncio Queue ──────────────────
+    q: asyncio.Queue = asyncio.Queue()
+
+    async def on_status(text: str):
+        await q.put(text)
+
+    browser_task = asyncio.create_task(_browse_and_extract(url, site, on_status=on_status))
+
+    # Drain queue while browser is working — yields status to frontend live
+    while not browser_task.done():
+        try:
+            text = await asyncio.wait_for(q.get(), timeout=0.4)
+            yield _status(text)
+        except asyncio.TimeoutError:
+            pass
+
+    # Drain any remaining status messages
+    while not q.empty():
+        yield _status(q.get_nowait())
+
+    products = await browser_task
 
     if products:
-        yield _status(f"AI vision scanned {len(products)} products — ranking…")
+        yield _status(f"AI vision found {len(products)} products — filtering…")
+        products = _sanity_filter(products, intent)
 
     # Fallback to demo data if live browsing failed or returned nothing
     if not products:
@@ -772,7 +935,9 @@ async def search_products_stream(intent: dict, limit: int = 15):
 
     budget_max = intent.get("budget_max")
     if budget_max:
-        products = [p for p in products if p["price"] <= budget_max]
+        within = [p for p in products if p["price"] <= budget_max]
+        if within:
+            products = within  # only apply if it doesn't wipe everything
 
     count = len(products)
     yield _status(f"Found {count} product{'s' if count != 1 else ''} — ranking by confidence…")
@@ -805,11 +970,24 @@ async def search_products_broad_stream(intent: dict):
             yield event
 
     if not products:
+        import asyncio
         label = site_labels.get(fallback_site, fallback_site)
         yield _status(f"Trying {label} instead…")
         query = _build_query(loose_intent)
         url = _SEARCH_URLS[fallback_site].format(query=query.replace(" ", "+"))
-        products = await _browse_and_extract(url, fallback_site)
+        q2: asyncio.Queue = asyncio.Queue()
+        async def _on_status2(t: str): await q2.put(t)
+        task2 = asyncio.create_task(_browse_and_extract(url, fallback_site, on_status=_on_status2))
+        while not task2.done():
+            try:
+                yield _status(await asyncio.wait_for(q2.get(), timeout=0.4))
+            except asyncio.TimeoutError:
+                pass
+        while not q2.empty():
+            yield _status(q2.get_nowait())
+        products = await task2
+        if products:
+            products = _sanity_filter(products, intent)
         if not products:
             products = _get_demo_products(fallback_site, intent)
 
