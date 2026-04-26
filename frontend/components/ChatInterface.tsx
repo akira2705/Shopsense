@@ -39,7 +39,7 @@ const OPENING_MESSAGE =
 
 const QUICK_STARTS = [
   { emoji: "👟", label: "Running shoes", text: "Running shoes for flat feet under ₹5000" },
-  { emoji: "📱", label: "Smartphone",    text: "Smartphone under ₹15000 for photography" },
+  { emoji: "🎮", label: "Gaming laptop", text: "Gaming laptop with RTX GPU and good screen under ₹80000" },
   { emoji: "🚗", label: "Used car",      text: "Used car under 5 lakhs in good condition" },
   { emoji: "💻", label: "Laptop",        text: "Laptop under ₹45000 for college and coding" },
   { emoji: "💄", label: "Skincare",      text: "Skincare for oily skin under ₹1000" },
@@ -48,8 +48,9 @@ const QUICK_STARTS = [
 // Map status text → icon
 function StatusIcon({ text }: { text: string }) {
   const t = text.toLowerCase();
-  if (t.includes("opening") || t.includes("browsing"))  return <Globe size={12} className="text-indigo-500 animate-pulse" />;
-  if (t.includes("screenshot") || t.includes("reading")) return <Camera size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("opening") || t.includes("browsing"))           return <Globe  size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("reading") || t.includes("section"))            return <Camera size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("vision") || t.includes("ai") || t.includes("ranking")) return <Cpu size={12} className="text-indigo-500 animate-pulse" />;
   return <Cpu size={12} className="text-indigo-500 animate-pulse" />;
 }
 

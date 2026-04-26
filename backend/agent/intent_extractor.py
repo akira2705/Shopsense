@@ -58,6 +58,22 @@ async def extract_intent(message: str, history: list[dict], existing_intent: dic
             if v is not None and v != "" and v != []:
                 merged[k] = v
 
+        # Clear missing_info for fields that are now answered
+        # Without this, the ambiguity penalty persists even after the user answers follow-ups
+        if merged.get("missing_info"):
+            still_missing = []
+            for field in merged["missing_info"]:
+                if field == "use_case" and merged.get("use_case"):
+                    continue
+                if field in ("budget", "budget_max") and merged.get("budget_max"):
+                    continue
+                if field == "priorities" and merged.get("priorities"):
+                    continue
+                if field == "constraints" and merged.get("constraints"):
+                    continue
+                still_missing.append(field)
+            merged["missing_info"] = still_missing
+
         return merged
 
     except Exception:
