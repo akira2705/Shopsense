@@ -6,6 +6,7 @@ Scoring per product:
   Budget match:       0–20 pts  (price within budget)
   Use case match:     0–25 pts  (description/tags match use case)
   Priority match:     0–15 pts  (PROPORTIONAL — each priority checked individually)
+  Rating bonus:       0–5 pts   (4.5★+ with 1000+ reviews → +5; 4.3★ → +3; 4.0★ → +1)
   Ambiguity penalty:  −8 pts    per unresolved missing_info item
   Constraint penalty: −15 pts   per hard constraint clearly violated
 
@@ -167,6 +168,7 @@ def compute_confidence(intent: dict, products: list) -> dict:
         "budget":            0,
         "use_case":          0,
         "priorities":        0,
+        "rating_bonus":      0,
         "ambiguity_penalty": 0,
     }
 
@@ -214,6 +216,23 @@ def compute_confidence(intent: dict, products: list) -> dict:
             scores["priorities"] = int(15 * total_earned / total_possible)
     elif priorities:
         scores["priorities"] = 10
+
+    # ── Rating bonus (0–5) — high-rated products with many reviews score higher ─
+    # Rewards community-validated products; only applies when rating data exists
+    rating_bonus = 0
+    if products:
+        for p in products:
+            r = p.get("rating") or 0
+            rc = p.get("review_count") or 0
+            if r >= 4.5 and rc >= 1000:
+                rating_bonus += 5
+            elif r >= 4.3 and rc >= 300:
+                rating_bonus += 3
+            elif r >= 4.0 and rc >= 100:
+                rating_bonus += 1
+        # Average across all products, cap at 5
+        rating_bonus = min(5, int(rating_bonus / len(products)))
+    scores["rating_bonus"] = rating_bonus
 
     # ── Ambiguity + constraint penalty ───────────────────────────────────────
     missing = [m for m in intent.get("missing_info", []) if m]

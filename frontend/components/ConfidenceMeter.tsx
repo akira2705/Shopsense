@@ -141,11 +141,14 @@ export default function ConfidenceMeter({ score, breakdown, journey, celebrated 
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Score Breakdown
           </p>
-          <BreakdownRow label="Category"  value={breakdown.category}          max={25} />
-          <BreakdownRow label="Budget"    value={breakdown.budget}            max={20} />
-          <BreakdownRow label="Use case"  value={breakdown.use_case}          max={25} />
-          <BreakdownRow label="Priorities" value={breakdown.priorities}       max={15} />
-          <BreakdownRow label="Ambiguity" value={breakdown.ambiguity_penalty} max={0}  />
+          <BreakdownRow label="Category"   value={breakdown.category}          max={25} />
+          <BreakdownRow label="Budget"     value={breakdown.budget}            max={20} />
+          <BreakdownRow label="Use case"   value={breakdown.use_case}          max={25} />
+          <BreakdownRow label="Priorities" value={breakdown.priorities}        max={15} />
+          {(breakdown.rating_bonus ?? 0) > 0 && (
+            <BreakdownRow label="Rating bonus" value={breakdown.rating_bonus}  max={5}  />
+          )}
+          <BreakdownRow label="Ambiguity"  value={breakdown.ambiguity_penalty} max={0}  />
         </div>
       )}
 

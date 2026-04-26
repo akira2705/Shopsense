@@ -112,7 +112,7 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
           <p className="font-semibold text-sm text-gray-900 dark:text-white leading-tight mb-0.5">
             {product.title}
           </p>
-          <div className="flex items-center gap-2 mb-2.5">
+          <div className="flex items-center gap-2 mb-1.5">
             <p className="text-sm text-gray-500">
               ₹{product.price.toLocaleString("en-IN")}
             </p>
@@ -128,6 +128,11 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
               </span>
             )}
           </div>
+          {product.review_highlight && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 italic mb-2 leading-snug">
+              💬 &ldquo;{product.review_highlight}&rdquo;
+            </p>
+          )}
 
           {/* Reasoning */}
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2.5">
