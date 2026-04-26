@@ -15,15 +15,48 @@ with open(_PROMPT_PATH) as f:
 
 # Hardcoded fallbacks keyed by missing_info label
 _FALLBACKS = {
-    "use_case": "Is this for road running, trail, or more casual everyday use?",
-    "surface_type": "Will you mostly be running on roads or trails?",
-    "budget": "Do you have a budget in mind, or should I show you the best option regardless of price?",
-    "skin_type": "What's your skin type — oily, dry, or combination?",
-    "skin_concern": "Is there a specific concern you're trying to address — acne, dryness, dullness?",
-    "frequency": "How often do you plan to use this?",
-    "occasion": "Is this for everyday use or a specific occasion?",
-    "recipient": "Who is this for — you, or a gift for someone else?",
+    "use_case":      "What'll you mainly use it for?",
+    "budget":        "Any budget in mind, or should I find the best regardless of price?",
+    "skin_type":     "Oily, dry, or combination skin?",
+    "skin_concern":  "Any specific concern — acne, dryness, dark spots?",
+    "surface_type":  "Mostly roads or trails?",
+    "transmission":  "Manual or automatic — any preference?",
+    "fuel_type":     "Petrol, diesel, or open to CNG/electric?",
+    "brand":         "Any brand in mind, or totally open?",
+    "priorities":    "What's the one thing that matters most to you?",
+    "frequency":     "How often will you use it?",
+    "occasion":      "Everyday use or a specific occasion?",
+    "recipient":     "Is this for you or a gift for someone?",
+    "condition":     "New or would you consider second-hand?",
 }
+
+# Priority order — highest confidence impact first
+# use_case = 25 pts, budget = 20 pts, everything else = ~15 pts
+_PRIORITY_ORDER = [
+    "use_case",
+    "budget",
+    "skin_type",
+    "skin_concern",
+    "surface_type",
+    "transmission",
+    "fuel_type",
+    "brand",
+    "priorities",
+    "frequency",
+    "occasion",
+    "recipient",
+    "condition",
+]
+
+
+def _pick_best_missing(missing_info: list[str]) -> str:
+    """Pick the highest-impact missing field to ask about."""
+    for priority_field in _PRIORITY_ORDER:
+        for m in missing_info:
+            if priority_field in m.lower() or m.lower() in priority_field:
+                return m
+    # Fallback: just take first
+    return missing_info[0]
 
 
 async def generate_followup(intent: dict, followup_count: int) -> str | None:
@@ -34,7 +67,8 @@ async def generate_followup(intent: dict, followup_count: int) -> str | None:
     if not missing_info:
         return None
 
-    top_missing = missing_info[0]
+    # Pick highest-impact missing field, not just first in list
+    top_missing = _pick_best_missing(missing_info)
 
     known = {
         k: v for k, v in intent.items()
@@ -54,7 +88,12 @@ async def generate_followup(intent: dict, followup_count: int) -> str | None:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a shopping assistant. Ask one natural clarifying question. Return only the question text, no quotes.",
+                    "content": (
+                        "You are a sharp, friendly shopping assistant. "
+                        "Ask one short natural clarifying question. "
+                        "Sound like a smart friend texting, not a form field. "
+                        "Return ONLY the question text, no quotes, no explanation."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],

@@ -52,7 +52,8 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
 
   const sourceKey = product.source || "amazon";
   const sourceLabel = SOURCE_LABELS[sourceKey] || sourceKey;
-  const sourceUrl = SOURCE_SEARCH_URLS[sourceKey] || SOURCE_SEARCH_URLS.amazon;
+  // Prefer the direct URL from the browser agent; fall back to search URL
+  const sourceUrl = product.url || SOURCE_SEARCH_URLS[sourceKey] || SOURCE_SEARCH_URLS.amazon;
 
   const handleViewProduct = () => {
     window.open(sourceUrl, "_blank");

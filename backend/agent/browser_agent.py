@@ -6,10 +6,10 @@ takes a screenshot, and uses Groq Vision (llama-3.2-90b-vision-preview)
 to read prices, ratings, and reviews — exactly like a human would.
 
 Sites:
-  - Amazon.in      → general products
-  - Flipkart.com   → general products (fallback)
-  - CarWale.com    → cars / bikes / vehicles
-  - OLX.in         → used / second-hand items
+  - Amazon.in      → general products (electronics, shoes, skincare, gym, etc.)
+  - Flipkart.com   → laptops, TVs, headphones, fashion, appliances
+  - CarWale.com    → new cars / bikes research
+  - OLX.in         → used / second-hand items (cars, bikes, phones, furniture)
 """
 
 import base64
@@ -22,32 +22,318 @@ from typing import Optional
 # Realistic products per category so the demo never dead-ends.
 
 _DEMO_PRODUCTS: dict[str, list[dict]] = {
+
+    # ── New cars / bikes ────────────────────────────────────────────────────
     "carwale": [
-        {"id": "cw_1", "title": "Maruti Suzuki Swift VDi", "description": "2019 model, 45000 km driven, single owner, diesel, well maintained", "tags": ["used", "car", "daily", "hatchback", "diesel", "maruti", "swift"], "price": 480000, "rating": 4.4, "review_count": 320, "image_url": None, "variant_id": None, "source": "carwale"},
-        {"id": "cw_2", "title": "Hyundai i20 Sportz Petrol", "description": "2018 model, 52000 km, second owner, petrol, good condition", "tags": ["used", "car", "daily", "hatchback", "petrol", "hyundai", "i20"], "price": 450000, "rating": 4.2, "review_count": 215, "image_url": None, "variant_id": None, "source": "carwale"},
-        {"id": "cw_3", "title": "Toyota Etios Liva G", "description": "2017 model, 60000 km, first owner, petrol, clean interior", "tags": ["used", "car", "daily", "hatchback", "petrol", "toyota", "etios"], "price": 390000, "rating": 4.1, "review_count": 180, "image_url": None, "variant_id": None, "source": "carwale"},
-        {"id": "cw_4", "title": "Honda Amaze S MT Petrol", "description": "2019 model, 38000 km, first owner, petrol sedan, great fuel efficiency", "tags": ["used", "car", "daily", "sedan", "petrol", "honda", "amaze"], "price": 495000, "rating": 4.5, "review_count": 290, "image_url": None, "variant_id": None, "source": "carwale"},
-        {"id": "cw_5", "title": "Maruti Suzuki Alto 800 LXi", "description": "2020 model, 28000 km, first owner, petrol, city car, very economical", "tags": ["used", "car", "daily", "hatchback", "petrol", "maruti", "alto", "city"], "price": 280000, "rating": 4.0, "review_count": 410, "image_url": None, "variant_id": None, "source": "carwale"},
-        {"id": "cw_6", "title": "Tata Tiago XZ Petrol", "description": "2021 model, 22000 km, first owner, petrol, safety rated, modern features", "tags": ["used", "car", "daily", "hatchback", "petrol", "tata", "tiago", "safety"], "price": 490000, "rating": 4.3, "review_count": 260, "image_url": None, "variant_id": None, "source": "carwale"},
+        {
+            "id": "cw_1", "title": "Maruti Suzuki Swift ZXi",
+            "description": "2024 model, 1.2L petrol, 23.76 kmpl, 6 airbags, sunroof, Apple CarPlay",
+            "tags": ["new", "car", "hatchback", "petrol", "maruti", "swift", "city", "daily"],
+            "price": 899000, "rating": 4.5, "review_count": 8200,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/maruti-suzuki-cars/swift/",
+        },
+        {
+            "id": "cw_2", "title": "Hyundai i20 Sportz 1.2 IVT",
+            "description": "2024 model, automatic, 20.35 kmpl, 6 airbags, wireless charging, rear camera",
+            "tags": ["new", "car", "hatchback", "petrol", "hyundai", "i20", "automatic", "city"],
+            "price": 1020000, "rating": 4.4, "review_count": 5600,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/hyundai-cars/i20/",
+        },
+        {
+            "id": "cw_3", "title": "Tata Punch Creative iCNG",
+            "description": "2024 CNG, 26.99 km/kg, micro-SUV, high ground clearance, safety rated 5-star",
+            "tags": ["new", "car", "suv", "cng", "tata", "punch", "city", "family"],
+            "price": 820000, "rating": 4.3, "review_count": 4100,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/tata-cars/punch/",
+        },
+        {
+            "id": "cw_4", "title": "Honda Amaze VX CVT Petrol",
+            "description": "2024 sedan, automatic, 20.1 kmpl, rear AC, sunroof, lane-watch camera",
+            "tags": ["new", "car", "sedan", "petrol", "honda", "amaze", "automatic", "family"],
+            "price": 1220000, "rating": 4.4, "review_count": 3800,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/honda-cars/amaze/",
+        },
+        {
+            "id": "cw_5", "title": "Maruti Suzuki Alto K10 VXi",
+            "description": "2024, 1.0L petrol, 24.39 kmpl, lightest in segment, easy city driving",
+            "tags": ["new", "car", "hatchback", "petrol", "maruti", "alto", "city", "budget"],
+            "price": 540000, "rating": 4.1, "review_count": 11000,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/maruti-suzuki-cars/alto-k10/",
+        },
+        {
+            "id": "cw_6", "title": "Bajaj Pulsar NS200 ABS",
+            "description": "2024, 199.5cc, 24.5 bhp, liquid-cooled, single-channel ABS, sporty naked",
+            "tags": ["new", "bike", "motorcycle", "bajaj", "pulsar", "sports", "commute"],
+            "price": 153000, "rating": 4.5, "review_count": 7400,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/bajaj-bikes/pulsar-ns200/",
+        },
+        {
+            "id": "cw_7", "title": "Hero Splendor+ XTEC",
+            "description": "2024, 97.2cc, 60+ kmpl, USB charging, Bluetooth connectivity, most sold bike India",
+            "tags": ["new", "bike", "motorcycle", "hero", "splendor", "commute", "mileage", "city"],
+            "price": 82000, "rating": 4.3, "review_count": 22000,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/hero-bikes/splendor-plus/",
+        },
+        {
+            "id": "cw_8", "title": "Hyundai Creta SX Petrol AT",
+            "description": "2024 compact SUV, automatic, panoramic sunroof, ADAS safety, 17.4 kmpl",
+            "tags": ["new", "car", "suv", "petrol", "hyundai", "creta", "automatic", "family", "highway"],
+            "price": 1980000, "rating": 4.6, "review_count": 6100,
+            "image_url": None, "variant_id": None, "source": "carwale",
+            "url": "https://www.carwale.com/hyundai-cars/creta/",
+        },
     ],
+
+    # ── Used / second-hand items ─────────────────────────────────────────────
     "olx": [
-        {"id": "olx_1", "title": "iPhone 12 64GB Blue", "description": "Used 1 year, excellent condition, all accessories included, minor scratches", "tags": ["used", "iphone", "smartphone", "apple", "mobile"], "price": 28000, "rating": 4.3, "review_count": None, "image_url": None, "variant_id": None, "source": "olx"},
-        {"id": "olx_2", "title": "Samsung Galaxy S21 5G", "description": "8 months old, no scratches, original box, charger included", "tags": ["used", "samsung", "smartphone", "android", "5g", "mobile"], "price": 32000, "rating": 4.1, "review_count": None, "image_url": None, "variant_id": None, "source": "olx"},
-        {"id": "olx_3", "title": "OnePlus 9R 8GB/128GB", "description": "6 months old, minor wear, fast charging, gaming phone", "tags": ["used", "oneplus", "smartphone", "android", "gaming", "mobile"], "price": 22000, "rating": 4.2, "review_count": None, "image_url": None, "variant_id": None, "source": "olx"},
+        {
+            "id": "olx_c1", "title": "Maruti Suzuki Swift VDi — 2019",
+            "description": "45000 km, first owner, diesel, excellent condition, all papers clear",
+            "tags": ["used", "car", "hatchback", "diesel", "maruti", "swift", "second hand"],
+            "price": 480000, "rating": 4.3, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/cars_c84",
+        },
+        {
+            "id": "olx_c2", "title": "Hyundai i20 Sportz 2018 Petrol",
+            "description": "52000 km, second owner, petrol, new tyres, accident-free",
+            "tags": ["used", "car", "hatchback", "petrol", "hyundai", "i20", "second hand"],
+            "price": 450000, "rating": 4.1, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/cars_c84",
+        },
+        {
+            "id": "olx_c3", "title": "Honda City ZX CVT 2017",
+            "description": "68000 km, first owner, petrol automatic, sunroof, full service history",
+            "tags": ["used", "car", "sedan", "petrol", "honda", "city", "automatic", "second hand"],
+            "price": 620000, "rating": 4.4, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/cars_c84",
+        },
+        {
+            "id": "olx_c4", "title": "Tata Nexon XZ+ 2020",
+            "description": "38000 km, first owner, petrol, 5-star safety, sunroof, reverse camera",
+            "tags": ["used", "car", "suv", "petrol", "tata", "nexon", "second hand"],
+            "price": 890000, "rating": 4.5, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/cars_c84",
+        },
+        {
+            "id": "olx_b1", "title": "Royal Enfield Classic 350 2021",
+            "description": "18000 km, first owner, single owner, well maintained, genuine colour",
+            "tags": ["used", "bike", "motorcycle", "royal enfield", "classic", "cruiser", "second hand"],
+            "price": 145000, "rating": 4.4, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/motorcycles_c107",
+        },
+        {
+            "id": "olx_b2", "title": "Honda Activa 6G 2022",
+            "description": "12000 km, first owner, OBD2 compliant, good mileage, scratch-free",
+            "tags": ["used", "scooter", "activa", "honda", "city", "daily", "second hand"],
+            "price": 65000, "rating": 4.2, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/motorcycles_c107",
+        },
+        {
+            "id": "olx_p1", "title": "iPhone 13 128GB Midnight",
+            "description": "10 months old, excellent condition, all accessories, battery 94%",
+            "tags": ["used", "iphone", "smartphone", "apple", "mobile", "second hand"],
+            "price": 42000, "rating": 4.5, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/mobile-phones_c339",
+        },
+        {
+            "id": "olx_p2", "title": "Samsung Galaxy S21 5G 128GB",
+            "description": "8 months old, no scratches, original box, charger included",
+            "tags": ["used", "samsung", "smartphone", "android", "5g", "mobile", "second hand"],
+            "price": 32000, "rating": 4.1, "review_count": None,
+            "image_url": None, "variant_id": None, "source": "olx",
+            "url": "https://www.olx.in/mobile-phones_c339",
+        },
     ],
+
+    # ── Amazon.in — general products ────────────────────────────────────────
     "amazon": [
-        {"id": "amz_1", "title": "Nike Air Max 270 Running Shoes", "description": "Lightweight road running shoe with Max Air cushioning, breathable mesh upper", "tags": ["running", "shoes", "road", "cushioned", "lightweight", "nike"], "price": 7495, "rating": 4.4, "review_count": 12500, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_2", "title": "Adidas Ultraboost 22 Road Running", "description": "Responsive Boost midsole, Primeknit+ upper, ideal for daily road training", "tags": ["running", "shoes", "road", "boost", "adidas", "daily"], "price": 9999, "rating": 4.6, "review_count": 8300, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_3", "title": "Puma Voyage Nitro Trail Shoes", "description": "Trail running shoe with Nitro foam, strong grip outsole, waterproof", "tags": ["running", "shoes", "trail", "grip", "puma", "waterproof"], "price": 5999, "rating": 4.3, "review_count": 4200, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_4", "title": "Skechers Go Run 7 Hyper", "description": "Ultra-lightweight everyday trainer, shock-absorbing, wide toe box, flat feet friendly", "tags": ["running", "shoes", "road", "lightweight", "flat feet", "skechers", "daily"], "price": 3999, "rating": 4.2, "review_count": 6700, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_5", "title": "Lakme 9to5 Primer Matte Lip", "description": "Long stay matte lipstick, moisturising formula, 16hr wear", "tags": ["lipstick", "matte", "makeup", "lakme", "longlasting"], "price": 349, "rating": 4.1, "review_count": 22000, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_6", "title": "Neutrogena Oil-Free Moisturiser SPF 15", "description": "Lightweight daily moisturiser for oily skin, non-comedogenic, SPF protection", "tags": ["skincare", "moisturiser", "oily skin", "spf", "neutrogena", "daily"], "price": 799, "rating": 4.5, "review_count": 31000, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_7", "title": "Redmi Note 12 Pro 5G 8GB/128GB", "description": "108MP camera, 5000mAh battery, AMOLED display, fast charging", "tags": ["smartphone", "android", "5g", "camera", "redmi", "xiaomi"], "price": 18999, "rating": 4.3, "review_count": 45000, "image_url": None, "variant_id": None, "source": "amazon"},
-        {"id": "amz_8", "title": "Samsung Galaxy M34 5G 6GB/128GB", "description": "6000mAh battery, 50MP camera, 5G ready, water-resistant", "tags": ["smartphone", "android", "5g", "battery", "samsung", "camera"], "price": 15999, "rating": 4.4, "review_count": 38000, "image_url": None, "variant_id": None, "source": "amazon"},
+        # Running shoes
+        {
+            "id": "amz_1", "title": "Nike Air Zoom Pegasus 40",
+            "description": "Road running, Air Zoom cushioning, responsive plate, breathable mesh",
+            "tags": ["running", "shoes", "road", "cushioned", "nike", "daily", "training"],
+            "price": 9995, "rating": 4.5, "review_count": 14200,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=nike+running+shoes",
+        },
+        {
+            "id": "amz_2", "title": "Skechers Go Run 7 Hyper",
+            "description": "Ultra-lightweight everyday trainer, flat feet friendly, wide toe box, shock-absorbing",
+            "tags": ["running", "shoes", "road", "lightweight", "flat feet", "skechers", "daily"],
+            "price": 3999, "rating": 4.2, "review_count": 6700,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=skechers+running+shoes",
+        },
+        {
+            "id": "amz_3", "title": "Puma Voyage Nitro 2 Trail",
+            "description": "Trail running, Nitro foam, aggressive grip outsole, waterproof upper",
+            "tags": ["running", "shoes", "trail", "grip", "puma", "waterproof", "outdoor"],
+            "price": 5999, "rating": 4.3, "review_count": 4200,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=puma+trail+running+shoes",
+        },
+        {
+            "id": "amz_4", "title": "ASICS Gel-Nimbus 25",
+            "description": "Premium daily trainer, GEL cushioning, excellent arch support, flat feet",
+            "tags": ["running", "shoes", "road", "cushioned", "asics", "flat feet", "arch support"],
+            "price": 12999, "rating": 4.6, "review_count": 3100,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=asics+running+shoes",
+        },
+        # Skincare
+        {
+            "id": "amz_5", "title": "Neutrogena Oil-Free Moisturiser SPF 15",
+            "description": "Lightweight daily moisturiser for oily skin, non-comedogenic, SPF protection",
+            "tags": ["skincare", "moisturiser", "oily skin", "spf", "neutrogena", "daily", "face"],
+            "price": 799, "rating": 4.5, "review_count": 31000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=neutrogena+moisturiser",
+        },
+        {
+            "id": "amz_6", "title": "Minimalist 10% Niacinamide Serum",
+            "description": "Controls oil, reduces pores and dark spots, suitable for oily and acne-prone skin",
+            "tags": ["skincare", "serum", "niacinamide", "oily skin", "acne", "minimalist", "face"],
+            "price": 599, "rating": 4.4, "review_count": 48000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=minimalist+niacinamide",
+        },
+        {
+            "id": "amz_7", "title": "Cetaphil Moisturising Cream 250g",
+            "description": "Dermatologist recommended, for dry and sensitive skin, fragrance-free, non-greasy",
+            "tags": ["skincare", "moisturiser", "dry skin", "sensitive", "cetaphil", "face", "body"],
+            "price": 549, "rating": 4.5, "review_count": 62000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=cetaphil+moisturiser",
+        },
+        # Smartphones
+        {
+            "id": "amz_8", "title": "Redmi Note 13 Pro+ 5G 8/256GB",
+            "description": "200MP periscope camera, 120W fast charging, AMOLED, Snapdragon 7s Gen 2",
+            "tags": ["smartphone", "android", "5g", "camera", "redmi", "xiaomi", "fast charging"],
+            "price": 26999, "rating": 4.4, "review_count": 18000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=redmi+note+13+pro+plus",
+        },
+        {
+            "id": "amz_9", "title": "Samsung Galaxy M34 5G 6/128GB",
+            "description": "6000mAh battery, 50MP camera, 5G, sAMOLED display, water-resistant",
+            "tags": ["smartphone", "android", "5g", "battery", "samsung", "camera"],
+            "price": 15999, "rating": 4.4, "review_count": 38000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=samsung+galaxy+m34",
+        },
+        # Gym / fitness
+        {
+            "id": "amz_10", "title": "Boldfit Resistance Bands Set (5-pack)",
+            "description": "Latex loop bands, 5 resistance levels, for home workout, stretching, physiotherapy",
+            "tags": ["gym", "fitness", "workout", "resistance bands", "home gym", "training"],
+            "price": 499, "rating": 4.3, "review_count": 29000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=resistance+bands",
+        },
+        {
+            "id": "amz_11", "title": "Yatri Adjustable Dumbbell 10kg Set",
+            "description": "Cast iron, rubber coating, adjustable weight, anti-roll hexagonal, home gym",
+            "tags": ["gym", "fitness", "dumbbell", "weights", "home gym", "training", "strength"],
+            "price": 1999, "rating": 4.2, "review_count": 11000,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=adjustable+dumbbell",
+        },
+        # Laptop bags / accessories
+        {
+            "id": "amz_12", "title": "WD 1TB My Passport Portable SSD",
+            "description": "256-bit AES encryption, USB-C, 1050 MB/s, compact, password protected",
+            "tags": ["storage", "ssd", "portable", "wd", "laptop", "backup", "work"],
+            "price": 6999, "rating": 4.6, "review_count": 8400,
+            "image_url": None, "variant_id": None, "source": "amazon",
+            "url": "https://www.amazon.in/s?k=wd+portable+ssd",
+        },
     ],
+
+    # ── Flipkart — laptops, TVs, appliances, fashion ────────────────────────
     "flipkart": [
-        {"id": "fk_1", "title": "boAt Rockerz 450 Bluetooth Headphone", "description": "40hr playtime, 40mm drivers, foldable design, mic included", "tags": ["headphone", "bluetooth", "wireless", "boat", "music"], "price": 1299, "rating": 4.1, "review_count": 95000, "image_url": None, "variant_id": None, "source": "flipkart"},
-        {"id": "fk_2", "title": "Fastrack Analog Watch for Men", "description": "Casual analog watch, water resistant 30m, leather strap", "tags": ["watch", "analog", "casual", "fastrack", "men"], "price": 1195, "rating": 4.0, "review_count": 12000, "image_url": None, "variant_id": None, "source": "flipkart"},
+        # Laptops
+        {
+            "id": "fk_l1", "title": "Lenovo IdeaPad Slim 3 Ryzen 5 7520U",
+            "description": "15.6\" FHD, 8GB RAM, 512GB SSD, Windows 11, Office H&S 2021, 3-cell battery",
+            "tags": ["laptop", "lenovo", "ideapad", "ryzen", "student", "work", "office", "college"],
+            "price": 42990, "rating": 4.3, "review_count": 22000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=lenovo+ideapad+slim+3",
+        },
+        {
+            "id": "fk_l2", "title": "HP 15s Intel Core i3-1215U",
+            "description": "15.6\" FHD, 8GB RAM, 512GB SSD, Intel UHD graphics, lightweight, good battery",
+            "tags": ["laptop", "hp", "intel", "i3", "student", "work", "office", "daily"],
+            "price": 37990, "rating": 4.2, "review_count": 31000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=hp+15s+laptop",
+        },
+        {
+            "id": "fk_l3", "title": "ASUS VivoBook 15 Ryzen 5 5500U",
+            "description": "15.6\" FHD, 8GB RAM, 512GB SSD, thin & light, fingerprint sensor, fast boot",
+            "tags": ["laptop", "asus", "vivobook", "ryzen", "thin", "light", "student", "college"],
+            "price": 44990, "rating": 4.4, "review_count": 17000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=asus+vivobook+15",
+        },
+        # Headphones / audio
+        {
+            "id": "fk_h1", "title": "Sony WH-1000XM5 Wireless ANC",
+            "description": "Industry-best noise cancelling, 30hr battery, multipoint, LDAC, premium comfort",
+            "tags": ["headphone", "wireless", "anc", "noise cancelling", "sony", "premium", "music"],
+            "price": 24990, "rating": 4.7, "review_count": 8900,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=sony+wh1000xm5",
+        },
+        {
+            "id": "fk_h2", "title": "boAt Rockerz 550 Bluetooth Headphone",
+            "description": "50hr playtime, 40mm drivers, foldable, quick charge, ASAP charging",
+            "tags": ["headphone", "bluetooth", "wireless", "boat", "music", "bass", "budget"],
+            "price": 1499, "rating": 4.1, "review_count": 95000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=boat+rockerz+550",
+        },
+        # TVs
+        {
+            "id": "fk_t1", "title": "Samsung 43\" Crystal 4K UHD Smart TV",
+            "description": "Crystal Processor 4K, PurColor, HDR, Tizen OS, built-in Alexa",
+            "tags": ["tv", "television", "samsung", "4k", "smart", "uhd", "43 inch", "living room"],
+            "price": 32990, "rating": 4.4, "review_count": 41000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=samsung+43+inch+4k+tv",
+        },
+        {
+            "id": "fk_t2", "title": "Mi 43\" X Series 4K QLED Smart TV",
+            "description": "Quantum dot display, Dolby Vision, 30W speakers, Android TV, 4K upscaling",
+            "tags": ["tv", "television", "xiaomi", "mi", "4k", "qled", "smart", "43 inch"],
+            "price": 29999, "rating": 4.3, "review_count": 26000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=mi+43+inch+qled+tv",
+        },
+        # Appliances
+        {
+            "id": "fk_a1", "title": "Samsung 253L 3-Star Frost Free Refrigerator",
+            "description": "Curd Maestro, Digital Inverter, Convertible 5-in-1, All-Around Cooling",
+            "tags": ["refrigerator", "fridge", "samsung", "double door", "frost free", "kitchen"],
+            "price": 24990, "rating": 4.4, "review_count": 19000,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=samsung+refrigerator+double+door",
+        },
     ],
 }
 
@@ -101,18 +387,54 @@ Rules:
 """
 
 
-# ── Site routing ────────────────────────────────────────────────────────────
+# ── Site routing ─────────────────────────────────────────────────────────────
+# IMPORTANT: order matters — used/second-hand check before vehicle check,
+# so "used car" → OLX, not CarWale (CarWale = new cars/bikes research)
 
 def _pick_site(intent: dict) -> str:
     combined = (
         (intent.get("category") or "") + " " +
-        (intent.get("use_case") or "")
+        (intent.get("use_case") or "") + " " +
+        " ".join(intent.get("constraints", []) or [])
     ).lower()
 
-    if any(w in combined for w in ["car", "bike", "motorcycle", "suv", "sedan", "hatchback", "vehicle"]):
-        return "carwale"
-    if any(w in combined for w in ["used", "second hand", "secondhand", "pre-owned", "old", "refurbished"]):
+    # ── Used / second-hand first (highest priority) ──────────────────────────
+    _used_kw = [
+        "used", "second hand", "secondhand", "second-hand",
+        "pre-owned", "preowned", "pre owned", "old ", "refurbished",
+        "preloved", "pre-loved",
+    ]
+    if any(w in combined for w in _used_kw):
         return "olx"
+
+    # ── Vehicles (new cars / bikes / scooters) ───────────────────────────────
+    _vehicle_kw = [
+        "car", "cars", "bike", "bikes", "motorcycle", "motorcycles",
+        "scooter", "scooters", "suv", "sedan", "hatchback", "vehicle",
+        "vehicles", "auto", "swift", "alto", "i20", "creta", "nexon",
+        "fortuner", "innova", "baleno", "brezza", "sonet", "venue",
+        "activa", "splendor", "pulsar", "unicorn", "classic 350",
+        "royal enfield", "tvs", "bajaj", "hero honda",
+        "new car", "new bike", "buy car", "buy bike",
+    ]
+    if any(w in combined for w in _vehicle_kw):
+        return "carwale"
+
+    # ── Flipkart — laptops, TVs, appliances, fashion ─────────────────────────
+    _flipkart_kw = [
+        "laptop", "laptops", "notebook",
+        "television", "tv", "smart tv", "led tv",
+        "refrigerator", "fridge", "washing machine", "dishwasher",
+        "air conditioner", "ac ", " ac", "cooler",
+        "headphone", "earphone", "earbuds",
+        "fashion", "clothes", "clothing", "shirt", "jeans", "kurta",
+        "dress", "saree", "ethnic", "footwear", "sandal", "heels",
+        "monitor", "printer", "camera dslr",
+    ]
+    if any(w in combined for w in _flipkart_kw):
+        return "flipkart"
+
+    # ── Default: Amazon ───────────────────────────────────────────────────────
     return "amazon"
 
 
@@ -261,8 +583,11 @@ async def search_products_stream(intent: dict, limit: int = 15):
 async def search_products_broad_stream(intent: dict):
     """Broad fallback — also yields status events."""
     site = _pick_site(intent)
-    fallback_site = "flipkart" if site == "amazon" else "amazon"
     site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
+
+    # Fallback site logic
+    fallback_map = {"amazon": "flipkart", "flipkart": "amazon", "carwale": "olx", "olx": "carwale"}
+    fallback_site = fallback_map.get(site, "amazon")
 
     loose_intent = {"category": intent.get("category", "")}
     products = []
@@ -281,6 +606,8 @@ async def search_products_broad_stream(intent: dict):
         screenshot_b64 = await _get_screenshot_b64(url)
         if screenshot_b64:
             products = await _vision_extract(screenshot_b64, fallback_site)
+        if not products:
+            products = _get_demo_products(fallback_site, intent)
 
     yield {"type": "products", "data": products}
 
@@ -292,12 +619,13 @@ def _get_demo_products(site: str, intent: dict) -> list[dict]:
     # Light keyword filter so demo products feel relevant
     category = (intent.get("category") or "").lower()
     use_case = (intent.get("use_case") or "").lower()
-    keywords = [w for w in (category + " " + use_case).split() if len(w) > 2]
+    constraints_text = " ".join(intent.get("constraints") or []).lower()
+    keywords = [w for w in (category + " " + use_case + " " + constraints_text).split() if len(w) > 2]
 
     if keywords:
         scored = []
         for p in pool:
-            text = (p["title"] + " " + " ".join(p["tags"])).lower()
+            text = (p["title"] + " " + p.get("description", "") + " " + " ".join(p["tags"])).lower()
             hits = sum(1 for k in keywords if k in text)
             scored.append((hits, p))
         scored.sort(key=lambda x: x[0], reverse=True)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, RotateCcw, Globe, Camera, Cpu, Sparkles } from "lucide-react";
+import { Send, RotateCcw, Globe, Camera, Cpu, Sparkles, Mic, MicOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import ProductCard from "./ProductCard";
@@ -14,14 +14,35 @@ interface JourneyStep {
   score: number;
 }
 
+// Web Speech API type declarations
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+declare const SpeechRecognition: new () => SpeechRecognitionInstance;
+declare const webkitSpeechRecognition: new () => SpeechRecognitionInstance;
+
 const OPENING_MESSAGE =
   "Tell me what you're looking for — budget, what it's for, anything on your mind. I'll tell you when I'm confident enough to recommend.";
 
 const QUICK_STARTS = [
-  { emoji: "👟", label: "Running shoes", text: "I'm looking for running shoes under ₹5000 for road running" },
-  { emoji: "📱", label: "Smartphone",    text: "I need a new smartphone under ₹15000" },
-  { emoji: "🚗", label: "Used car",      text: "I want to buy a used car under 5 lakhs" },
-  { emoji: "💄", label: "Skincare",      text: "I need skincare products for oily skin under ₹1000" },
+  { emoji: "👟", label: "Running shoes", text: "Running shoes for flat feet under ₹5000" },
+  { emoji: "📱", label: "Smartphone",    text: "Smartphone under ₹15000 for photography" },
+  { emoji: "🚗", label: "Used car",      text: "Used car under 5 lakhs in good condition" },
+  { emoji: "💻", label: "Laptop",        text: "Laptop under ₹45000 for college and coding" },
+  { emoji: "💄", label: "Skincare",      text: "Skincare for oily skin under ₹1000" },
 ];
 
 // Map status text → icon
@@ -30,6 +51,85 @@ function StatusIcon({ text }: { text: string }) {
   if (t.includes("opening") || t.includes("browsing"))  return <Globe size={12} className="text-indigo-500 animate-pulse" />;
   if (t.includes("screenshot") || t.includes("reading")) return <Camera size={12} className="text-indigo-500 animate-pulse" />;
   return <Cpu size={12} className="text-indigo-500 animate-pulse" />;
+}
+
+// Mic button with recording state
+function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) => void; disabled: boolean }) {
+  const [isListening, setIsListening]     = useState(false);
+  const [isSupported, setIsSupported]     = useState(false);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
+  useEffect(() => {
+    const supported = typeof window !== "undefined" &&
+      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+    setIsSupported(supported);
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const SR = ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) as new () => SpeechRecognitionInstance;
+      const recognition = new SR();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = "en-IN";
+
+      recognition.onresult = (e: SpeechRecognitionEvent) => {
+        const transcript = Array.from(e.results)
+          .map(r => r[0].transcript)
+          .join(" ")
+          .trim();
+        if (transcript) onTranscript(transcript);
+      };
+
+      recognition.onerror = () => {
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      setIsListening(true);
+    } catch {
+      setIsListening(false);
+    }
+  }, [isListening, onTranscript]);
+
+  if (!isSupported) return null;
+
+  return (
+    <motion.button
+      onClick={startListening}
+      disabled={disabled}
+      title={isListening ? "Tap to stop" : "Speak your request"}
+      whileTap={{ scale: 0.92 }}
+      className={`relative p-2.5 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+        isListening
+          ? "bg-red-500 hover:bg-red-600 text-white"
+          : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+      }`}
+    >
+      {/* Pulse ring when recording */}
+      {isListening && (
+        <motion.span
+          className="absolute inset-0 rounded-xl bg-red-400"
+          animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
+          transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+        />
+      )}
+      <span className="relative">
+        {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+      </span>
+    </motion.button>
+  );
 }
 
 export default function ChatInterface() {
@@ -217,6 +317,15 @@ export default function ChatInterface() {
       inputRef.current?.focus();
     }
   }, [input, isStreaming, sessionId, messages, confidence, addAgentMessage, addRecommendation]);
+
+  // Voice transcript handler — fill input then auto-send
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setInput(text);
+    // Small delay so user sees what was transcribed before it sends
+    setTimeout(() => {
+      handleSend(text);
+    }, 600);
+  }, [handleSend]);
 
   const handleReset = useCallback(async () => {
     const newId = uuidv4();
@@ -416,9 +525,14 @@ export default function ChatInterface() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isStreaming}
-              placeholder="Tell me what you're looking for…"
+              placeholder="Tell me what you're looking for… or tap the mic 🎤"
               className="flex-1 text-sm px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 transition shadow-sm"
             />
+
+            {/* Voice input button */}
+            <MicButton onTranscript={handleVoiceTranscript} disabled={isStreaming} />
+
+            {/* Send button */}
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || isStreaming}

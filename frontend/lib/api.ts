@@ -38,6 +38,7 @@ export interface RecommendationData {
     source?: string;       // "amazon" | "flipkart" | "carwale" | "olx"
     rating?: number | null;
     review_count?: number | null;
+    url?: string | null;   // direct product/search URL from browser agent
   };
   reasoning: string;
   regret_risk: "low" | "medium" | "high";
