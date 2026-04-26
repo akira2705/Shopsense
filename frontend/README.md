@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ShopSense — Frontend
 
-## Getting Started
+Next.js 15 frontend for ShopSense. Chat interface with animated confidence ring, live browser status stream, and token-by-token reasoning display.
 
-First, run the development server:
+## Stack
+
+- **Next.js 15** (App Router)
+- **TypeScript**
+- **Tailwind CSS v4**
+- **Framer Motion** — confidence ring, status transitions, message animations
+- **Lucide React** — icons
+
+## Key Components
+
+| File | What it does |
+|---|---|
+| `components/ChatInterface.tsx` | Main chat UI — SSE client, voice input, quick-start chips, live status |
+| `components/ConfidenceMeter.tsx` | Animated SVG ring + score breakdown + confidence journey |
+| `components/ProductCard.tsx` | Recommendation card — source badge, rating, streaming reasoning |
+| `components/EliminationPanel.tsx` | Collapsible list of ruled-out products with AI reasons |
+| `lib/api.ts` | Typed SSE streaming client, all event types |
+
+## Local Dev
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires the backend running at `http://localhost:8000`. See the [main README](../README.md).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```env
+# .env.local
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For production, set `NEXT_PUBLIC_API_URL` to your Render backend URL in Vercel's environment settings.
