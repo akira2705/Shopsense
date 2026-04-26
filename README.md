@@ -49,9 +49,10 @@ User → Next.js (Vercel) → FastAPI (Render) → Groq LLM + Browser Agent
 3. A **deterministic confidence score** is computed — zero LLM involved
 4. If confidence < 80%, agent asks one targeted follow-up (max 2 questions total)
 5. **Playwright** launches a real browser and navigates to the right site:
-   - General products → Amazon.in (fallback: Flipkart)
-   - Cars / bikes → CarWale
-   - Used / second-hand → OLX
+   - Used / second-hand (any category) → OLX (checked first)
+   - New cars / bikes / vehicles → CarWale
+   - Laptops / TVs / appliances / fashion → Flipkart
+   - Everything else (shoes, skincare, phones, gym) → Amazon.in
 6. A screenshot is taken; **Groq Vision** reads prices, ratings, and review counts from it
 7. Products are re-scored against confidence formula with actual data
 8. **Groq LLM streams** reasoning tokens live — the user watches it think in real-time
