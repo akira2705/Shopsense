@@ -57,6 +57,7 @@ function StatusIcon({ text }: { text: string }) {
 function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) => void; disabled: boolean }) {
   const [isListening, setIsListening]     = useState(false);
   const [isSupported, setIsSupported]     = useState(false);
+  const [errorMsg, setErrorMsg]           = useState("");
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
@@ -87,8 +88,12 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
         if (transcript) onTranscript(transcript);
       };
 
-      recognition.onerror = () => {
+      recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
         setIsListening(false);
+        if (e.error === "not-allowed") setErrorMsg("Mic access denied — allow microphone in browser settings");
+        else if (e.error === "no-speech") setErrorMsg("No speech detected — try again");
+        else setErrorMsg(`Mic error: ${e.error}`);
+        setTimeout(() => setErrorMsg(""), 3500);
       };
 
       recognition.onend = () => {
@@ -106,29 +111,45 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
   if (!isSupported) return null;
 
   return (
-    <motion.button
-      onClick={startListening}
-      disabled={disabled}
-      title={isListening ? "Tap to stop" : "Speak your request"}
-      whileTap={{ scale: 0.92 }}
-      className={`relative p-2.5 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed ${
-        isListening
-          ? "bg-red-500 hover:bg-red-600 text-white"
-          : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
-      }`}
-    >
-      {/* Pulse ring when recording */}
-      {isListening && (
-        <motion.span
-          className="absolute inset-0 rounded-xl bg-red-400"
-          animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
-          transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
-        />
-      )}
-      <span className="relative">
-        {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-      </span>
-    </motion.button>
+    <div className="relative flex flex-col items-center">
+      <motion.button
+        onClick={startListening}
+        disabled={disabled}
+        title={isListening ? "Tap to stop" : "Speak your request"}
+        whileTap={{ scale: 0.92 }}
+        className={`relative p-2.5 rounded-xl transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+          isListening
+            ? "bg-red-500 hover:bg-red-600 text-white"
+            : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
+        }`}
+      >
+        {/* Pulse ring when recording */}
+        {isListening && (
+          <motion.span
+            className="absolute inset-0 rounded-xl bg-red-400"
+            animate={{ scale: [1, 1.5, 1], opacity: [0.6, 0, 0.6] }}
+            transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+          />
+        )}
+        <span className="relative">
+          {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+        </span>
+      </motion.button>
+
+      {/* Error tooltip */}
+      <AnimatePresence>
+        {errorMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute bottom-12 right-0 z-10 w-56 text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 px-3 py-2 rounded-lg shadow-md"
+          >
+            {errorMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
