@@ -380,6 +380,12 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
 
 from openai import AsyncOpenAI
 from playwright.async_api import async_playwright
+try:
+    from playwright_stealth import stealth_async as _stealth
+    _STEALTH_AVAILABLE = True
+except ImportError:
+    _STEALTH_AVAILABLE = False
+    print("[browser_agent] playwright-stealth not installed — bot detection may trigger")
 
 _client = AsyncOpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
@@ -487,37 +493,86 @@ def _build_query(intent: dict) -> str:
     return " ".join(parts) if parts else "products"
 
 
+# ── Site-specific wait selectors (what to wait for before screenshotting) ──
+
+_WAIT_SELECTORS = {
+    "amazon":   "[data-component-type='s-search-result']",   # product card
+    "flipkart": "._1AtVbE",                                  # product tile
+    "carwale":  ".gsc-search-result, .listing-card, [class*='car-card'], [class*='CarCard']",
+    "olx":      "[data-aut-id='itemBox'], .EIR5N",           # OLX listing card
+}
+
 # ── Browser + screenshot ────────────────────────────────────────────────────
 
-async def _get_screenshot_b64(url: str) -> Optional[str]:
-    """Launch a real browser, load the URL, return a base64 JPEG screenshot."""
+async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
+    """Launch a stealth browser, load the URL, wait for products, return screenshot."""
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",  # hides headless flag
+                    "--disable-web-security",
+                    "--disable-features=IsolateOrigins,site-per-process",
+                ],
             )
             context = await browser.new_context(
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/122.0.0.0 Safari/537.36"
+                    "Chrome/124.0.0.0 Safari/537.36"
                 ),
-                viewport={"width": 1280, "height": 900},
+                viewport={"width": 1366, "height": 768},
+                locale="en-IN",
+                timezone_id="Asia/Kolkata",
+                extra_http_headers={
+                    "Accept-Language": "en-IN,en;q=0.9",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                },
             )
             page = await context.new_page()
 
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2500)   # let JS / lazy-load settle
+            # Apply stealth patches to hide Playwright's automation fingerprint
+            if _STEALTH_AVAILABLE:
+                await _stealth(page)
 
-            # Scroll down a little to trigger lazy-loaded product cards
-            await page.evaluate("window.scrollBy(0, 400)")
-            await page.wait_for_timeout(500)
+            # Remove the navigator.webdriver property that sites detect
+            await page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+                Object.defineProperty(navigator, 'languages', { get: () => ['en-IN', 'en'] });
+                window.chrome = { runtime: {} };
+            """)
 
-            screenshot_bytes = await page.screenshot(type="jpeg", quality=72, full_page=False)
+            print(f"[browser_agent] navigating to {url}")
+            await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+
+            # Wait for actual product cards to appear (site-specific selector)
+            selector = _WAIT_SELECTORS.get(site, "")
+            if selector:
+                try:
+                    await page.wait_for_selector(selector, timeout=8000)
+                    print(f"[browser_agent] product cards loaded on {site}")
+                except Exception:
+                    # Selector didn't appear — still try screenshot
+                    print(f"[browser_agent] selector timeout on {site}, taking screenshot anyway")
+                    await page.wait_for_timeout(3000)
+            else:
+                await page.wait_for_timeout(3000)
+
+            # Scroll to trigger lazy-loaded cards
+            await page.evaluate("window.scrollBy(0, 500)")
+            await page.wait_for_timeout(800)
+
+            screenshot_bytes = await page.screenshot(type="jpeg", quality=80, full_page=False)
             await browser.close()
 
-        return base64.b64encode(screenshot_bytes).decode()
+        b64 = base64.b64encode(screenshot_bytes).decode()
+        print(f"[browser_agent] screenshot captured ({len(b64)//1024}KB)")
+        return b64
 
     except Exception as exc:
         print(f"[browser_agent] screenshot error: {exc}")
@@ -599,7 +654,7 @@ async def search_products_stream(intent: dict, limit: int = 15):
     url = _SEARCH_URLS[site].format(query=query.replace(" ", "+"))
 
     yield _status(f"Opening {label}…")
-    screenshot_b64 = await _get_screenshot_b64(url)
+    screenshot_b64 = await _get_screenshot_b64(url, site)
 
     products = []
 
@@ -644,7 +699,7 @@ async def search_products_broad_stream(intent: dict):
         yield _status(f"Trying {label} instead…")
         query = _build_query(loose_intent)
         url = _SEARCH_URLS[fallback_site].format(query=query.replace(" ", "+"))
-        screenshot_b64 = await _get_screenshot_b64(url)
+        screenshot_b64 = await _get_screenshot_b64(url, fallback_site)
         if screenshot_b64:
             products = await _vision_extract(screenshot_b64, fallback_site)
         if not products:
