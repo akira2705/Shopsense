@@ -348,6 +348,39 @@ _DEMO_PRODUCTS: dict[str, list[dict]] = {
             "image_url": None, "variant_id": None, "source": "flipkart",
             "url": "https://www.flipkart.com/search?q=asus+vivobook+15",
         },
+        # Gaming laptops
+        {
+            "id": "fk_g1", "title": "ASUS ROG Strix G15 RTX 4060 Gaming Laptop",
+            "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4060 8GB, Ryzen 7 7745HX, 16GB DDR5 RAM, 512GB NVMe SSD",
+            "tags": ["laptop", "gaming", "asus", "rog", "nvidia", "rtx", "rtx 4060", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen", "ddr5"],
+            "price": 89990, "rating": 4.5, "review_count": 6200,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=asus+rog+rtx+4060+gaming+laptop",
+        },
+        {
+            "id": "fk_g2", "title": "Lenovo LOQ RTX 4050 Gaming Laptop",
+            "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050 6GB, Intel i5-13420H, 16GB DDR5 RAM, 512GB SSD",
+            "tags": ["laptop", "gaming", "lenovo", "loq", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen"],
+            "price": 69990, "rating": 4.4, "review_count": 8900,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=lenovo+loq+rtx+4050",
+        },
+        {
+            "id": "fk_g3", "title": "HP Victus 15 RTX 4050 Gaming Laptop",
+            "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050 6GB, AMD Ryzen 5 7535HS, 16GB RAM, 512GB SSD, good thermals",
+            "tags": ["laptop", "gaming", "hp", "victus", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen"],
+            "price": 64990, "rating": 4.3, "review_count": 11200,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=hp+victus+rtx+4050",
+        },
+        {
+            "id": "fk_g4", "title": "MSI Thin GF63 RTX 4050 Laptop",
+            "description": "15.6\" 144Hz FHD IPS, NVIDIA RTX 4050, Intel i7-12650H, 16GB DDR4 RAM, 512GB NVMe, thin build",
+            "tags": ["laptop", "gaming", "msi", "nvidia", "rtx", "rtx 4050", "gpu", "dedicated graphics", "16gb", "ram", "144hz", "ips", "display", "screen", "thin"],
+            "price": 59990, "rating": 4.2, "review_count": 5700,
+            "image_url": None, "variant_id": None, "source": "flipkart",
+            "url": "https://www.flipkart.com/search?q=msi+thin+gf63+rtx",
+        },
         # Headphones / audio
         {
             "id": "fk_h1", "title": "Sony WH-1000XM5 Wireless ANC",
@@ -486,7 +519,8 @@ def _pick_site(intent: dict) -> str:
 
     # ── Flipkart — laptops, TVs, appliances, fashion ─────────────────────────
     _flipkart_kw = [
-        "laptop", "laptops", "notebook",
+        "laptop", "laptops", "notebook", "gaming laptop",
+        "graphics card", "rtx", "nvidia", "gtx", "gpu",
         "television", "tv", "smart tv", "led tv",
         "refrigerator", "fridge", "washing machine", "dishwasher",
         "air conditioner", "ac ", " ac", "cooler",
