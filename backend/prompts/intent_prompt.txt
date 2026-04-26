@@ -29,7 +29,17 @@ Priority of what to ask about (missing_info should reflect this order):
 
 Rules:
 - NEVER add to missing_info something already present in history or existing_intent
-- If budget is mentioned with lakhs (e.g. "5 lakhs", "5L"), convert to INR (500000)
+- Indian currency conversion (CRITICAL — get this right):
+    1 lakh = 100,000 INR
+    5 lakhs / 5L = 500,000
+    10 lakhs / 10L = 1,000,000
+    15 lakhs / 15L = 1,500,000
+    20 lakhs = 2,000,000
+    30 lakhs = 3,000,000
+    50 lakhs / 50L = 5,000,000
+    1 crore / 1CR = 10,000,000
+    Formula: budget_max = (number before "lakh") × 100000
+    Examples: "under 50 lakh" → 5000000 | "within 8 lakh" → 800000 | "20L budget" → 2000000
 - If "used" / "second hand" / "pre-owned" appears anywhere, add "used" to constraints
 - If "flat feet" mentioned, add "flat feet support" to constraints
 - Do NOT put "use_case" in missing_info if the category itself implies the use case (e.g. "running shoes" → use_case is running)
