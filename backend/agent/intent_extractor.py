@@ -1,16 +1,24 @@
 import json
 import os
 import re
-import anthropic
 
-_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from openai import AsyncOpenAI
+
+_client = AsyncOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
+
+_MODEL = "llama-3.3-70b-versatile"
 
 _PROMPT_PATH = os.path.join(os.path.dirname(__file__), "../prompts/intent_prompt.txt")
 with open(_PROMPT_PATH) as f:
     _PROMPT_TEMPLATE = f.read()
 
 
-async def extract_intent(message: str, history: list[dict], existing_intent: dict = {}) -> dict:
+async def extract_intent(message: str, history: list[dict], existing_intent: dict = None) -> dict:
+    existing_intent = existing_intent or {}
+
     history_text = "\n".join(
         f"{m['role'].upper()}: {m['content']}" for m in history[-6:]
     ) or "none"
@@ -24,12 +32,18 @@ async def extract_intent(message: str, history: list[dict], existing_intent: dic
     )
 
     try:
-        response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
+        response = await _client.chat.completions.create(
+            model=_MODEL,
             max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You extract shopping intent from user messages. Return only valid JSON with no extra text.",
+                },
+                {"role": "user", "content": prompt},
+            ],
         )
-        raw = response.content[0].text.strip()
+        raw = response.choices[0].message.content.strip()
 
         # Extract JSON block robustly
         match = re.search(r"\{.*\}", raw, re.DOTALL)
@@ -46,7 +60,7 @@ async def extract_intent(message: str, history: list[dict], existing_intent: dic
 
         return merged
 
-    except (json.JSONDecodeError, anthropic.APIError, Exception):
+    except Exception:
         return _keyword_fallback(message, existing_intent)
 
 

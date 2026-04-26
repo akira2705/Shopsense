@@ -1,7 +1,13 @@
 import os
-import anthropic
 
-_client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+from openai import AsyncOpenAI
+
+_client = AsyncOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
+
+_MODEL = "llama-3.3-70b-versatile"
 
 _PROMPT_PATH = os.path.join(os.path.dirname(__file__), "../prompts/followup_prompt.txt")
 with open(_PROMPT_PATH) as f:
@@ -42,12 +48,18 @@ async def generate_followup(intent: dict, followup_count: int) -> str | None:
     )
 
     try:
-        response = await _client.messages.create(
-            model="claude-haiku-4-5-20251001",
+        response = await _client.chat.completions.create(
+            model=_MODEL,
             max_tokens=120,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a shopping assistant. Ask one natural clarifying question. Return only the question text, no quotes.",
+                },
+                {"role": "user", "content": prompt},
+            ],
         )
-        question = response.content[0].text.strip().strip('"\'')
+        question = response.choices[0].message.content.strip().strip('"\'')
         return question if question else _FALLBACKS.get(top_missing)
 
     except Exception:

@@ -35,6 +35,9 @@ export interface RecommendationData {
     image_url: string | null;
     variant_id: string | null;
     tags: string[];
+    source?: string;       // "amazon" | "flipkart" | "carwale" | "olx"
+    rating?: number | null;
+    review_count?: number | null;
   };
   reasoning: string;
   regret_risk: "low" | "medium" | "high";
@@ -45,14 +48,27 @@ export interface RecommendationData {
 }
 
 export interface SSEEvent {
-  type: "confidence" | "message" | "followup" | "recommendation" | "error" | "done";
+  type:
+    | "confidence"
+    | "message"
+    | "followup"
+    | "recommendation"        // legacy — kept for fallback
+    | "recommendation_start"  // A: product + elimination, no reasoning yet
+    | "token"                 // A: streaming reasoning chunk
+    | "recommendation_done"   // A: regret_risk / tradeoff after stream ends
+    | "error"
+    | "done";
+  // confidence
   score?: number;
   breakdown?: ConfidenceBreakdown;
+  session_id?: string;
+  // message / followup
   content?: string;
   question?: string;
-  session_id?: string;
   message?: string;
-  // recommendation fields
+  // token (A)
+  text?: string;
+  // recommendation fields (legacy + recommendation_start + recommendation_done)
   product?: RecommendationData["product"];
   reasoning?: string;
   regret_risk?: "low" | "medium" | "high";
