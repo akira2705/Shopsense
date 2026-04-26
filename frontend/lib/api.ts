@@ -12,6 +12,7 @@ export interface ConfidenceBreakdown {
   budget: number;
   use_case: number;
   priorities: number;
+  rating_bonus: number;
   ambiguity_penalty: number;
 }
 
@@ -35,10 +36,11 @@ export interface RecommendationData {
     image_url: string | null;
     variant_id: string | null;
     tags: string[];
-    source?: string;       // "amazon" | "flipkart" | "carwale" | "olx"
+    source?: string;             // "amazon" | "flipkart" | "carwale" | "olx"
     rating?: number | null;
     review_count?: number | null;
-    url?: string | null;   // direct product/search URL from browser agent
+    review_highlight?: string | null;  // short buyer quote from vision extraction
+    url?: string | null;         // direct product/search URL from browser agent
   };
   reasoning: string;
   regret_risk: "low" | "medium" | "high";

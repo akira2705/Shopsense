@@ -452,35 +452,53 @@ _SEARCH_URLS = {
     "olx":      "https://www.olx.in/items/q-{query}",
 }
 
-# ── Vision extraction prompt ────────────────────────────────────────────────
+# ── Vision extraction prompts (site-aware) ──────────────────────────────────
 
-_EXTRACT_PROMPT = """You are looking at a product search results page screenshot.
+_BASE_EXTRACT_PROMPT = """You are looking at a {site_label} search results screenshot.
 
-Extract every visible product listing. For each one return:
-- title: exact product name as shown
-- price: price in INR as a plain number (e.g. 1299, not "₹1,299"). If a range, use the lower number.
-- rating: star rating out of 5 as a decimal if visible (e.g. 4.3), else null
-- review_count: number of ratings/reviews if visible as an integer, else null
-- description: any visible highlights, specs, or tagline (1-2 sentences max)
-- tags: list of relevant keywords extracted from title and description
+Extract EVERY visible product. For each return:
+- title: exact product name as shown on page
+- price: INR as plain number (e.g. 1299). Ranges → use lower number. Null if not visible.
+- rating: stars out of 5 as decimal (e.g. 4.3), null if not shown
+- review_count: integer count of ratings/reviews, null if not shown
+- review_highlight: ONE short phrase (max 8 words) summarising what buyers say — look for review snippets, "most liked", "verified buyer" text visible on page. Null if none visible.
+- description: visible specs, highlights, tagline — 1-2 sentences. Include RAM, GPU, storage, mileage, seating, fuel type if shown.
+- tags: keywords from title + description + specs. Include technical terms: rtx, oled, 144hz, 7 seater, diesel, etc.
 
-Return ONLY a valid JSON array, nothing else:
+{site_hints}
+
+Return ONLY a valid JSON array, no other text:
 [
-  {
+  {{
     "title": "...",
     "price": 1299,
     "rating": 4.3,
     "review_count": 1500,
+    "review_highlight": "Great battery, fast charging",
     "description": "...",
     "tags": ["tag1", "tag2"]
-  }
+  }}
 ]
 
 Rules:
-- Skip any product where price is not visible or is 0
-- Include ALL visible products, even if some fields are null
-- Do not add commentary, just the JSON array
+- Skip products with no visible price
+- Include ALL visible products even if some fields are null
+- Be thorough with tags — include every spec keyword you can see
 """
+
+_SITE_HINTS = {
+    "amazon": "Amazon-specific: look for star ratings, 'X ratings', 'Sponsored', Prime badge. Extract specs from bullet points. Tags should include brand, key specs, use case.",
+    "flipkart": "Flipkart-specific: look for star ratings, 'X ratings & Y reviews', 'Assured' badge. Tags should include brand, RAM, storage, display specs.",
+    "carwale": "CarWale-specific: extract fuel type (petrol/diesel/CNG/electric/hybrid), mileage (kmpl or km/kg), seating capacity (5-seater/7-seater), transmission (manual/automatic/CVT). Tags MUST include these.",
+    "olx": "OLX-specific: extract year, km driven, ownership (1st owner/2nd owner), condition. Tags should include these details. Prices may be negotiable.",
+}
+
+def _extract_prompt_for_site(site: str) -> str:
+    labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
+    return _BASE_EXTRACT_PROMPT.format(
+        site_label=labels.get(site, site),
+        site_hints=_SITE_HINTS.get(site, ""),
+    )
 
 
 # ── Site routing ─────────────────────────────────────────────────────────────
@@ -537,11 +555,26 @@ def _pick_site(intent: dict) -> str:
 
 
 def _build_query(intent: dict) -> str:
-    parts = [p for p in [
-        intent.get("category"),
-        intent.get("use_case"),
-    ] if p]
-    return " ".join(parts) if parts else "products"
+    """Build a specific search query — include model names, key constraints, use_case."""
+    parts = []
+
+    category = (intent.get("category") or "").strip()
+    if category:
+        parts.append(category)
+
+    use_case = (intent.get("use_case") or "").strip()
+    # Only add use_case if it's meaningfully different from category
+    if use_case and use_case.lower() not in category.lower():
+        parts.append(use_case)
+
+    # Include short hard constraints that narrow the search (seating, fuel, body type)
+    for c in (intent.get("constraints") or [])[:3]:
+        c_stripped = c.strip()
+        # Only add short, search-friendly constraints
+        if c_stripped and len(c_stripped) < 25 and c_stripped.lower() not in " ".join(parts).lower():
+            parts.append(c_stripped)
+
+    return " ".join(p for p in parts if p) or "products"
 
 
 # ── Site-specific wait selectors (what to wait for before screenshotting) ──
@@ -555,8 +588,11 @@ _WAIT_SELECTORS = {
 
 # ── Browser + screenshot ────────────────────────────────────────────────────
 
-async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
-    """Launch a stealth browser, load the URL, wait for products, return screenshot."""
+async def _browse_and_extract(url: str, site: str) -> list[dict]:
+    """
+    Launch a stealth browser, scroll through the page in 3 steps,
+    extract products from each scroll position, deduplicate, return combined list.
+    """
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(
@@ -565,7 +601,7 @@ async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                    "--disable-blink-features=AutomationControlled",  # hides headless flag
+                    "--disable-blink-features=AutomationControlled",
                     "--disable-web-security",
                     "--disable-features=IsolateOrigins,site-per-process",
                 ],
@@ -576,7 +612,7 @@ async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
                     "AppleWebKit/537.36 (KHTML, like Gecko) "
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
-                viewport={"width": 1366, "height": 768},
+                viewport={"width": 1366, "height": 900},
                 locale="en-IN",
                 timezone_id="Asia/Kolkata",
                 extra_http_headers={
@@ -586,11 +622,9 @@ async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
             )
             page = await context.new_page()
 
-            # Apply stealth patches to hide Playwright's automation fingerprint
             if _STEALTH_AVAILABLE:
                 await _stealth(page)
 
-            # Remove the navigator.webdriver property that sites detect
             await page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
                 Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
@@ -598,36 +632,56 @@ async def _get_screenshot_b64(url: str, site: str = "amazon") -> Optional[str]:
                 window.chrome = { runtime: {} };
             """)
 
-            print(f"[browser_agent] navigating to {url}")
+            print(f"[browser_agent] navigating → {url}")
             await page.goto(url, wait_until="domcontentloaded", timeout=25000)
 
-            # Wait for actual product cards to appear (site-specific selector)
+            # Wait for product cards
             selector = _WAIT_SELECTORS.get(site, "")
             if selector:
                 try:
                     await page.wait_for_selector(selector, timeout=8000)
-                    print(f"[browser_agent] product cards loaded on {site}")
+                    print(f"[browser_agent] ✓ product cards detected ({site})")
                 except Exception:
-                    # Selector didn't appear — still try screenshot
-                    print(f"[browser_agent] selector timeout on {site}, taking screenshot anyway")
+                    print(f"[browser_agent] selector timeout — proceeding anyway")
                     await page.wait_for_timeout(3000)
             else:
                 await page.wait_for_timeout(3000)
 
-            # Scroll to trigger lazy-loaded cards
-            await page.evaluate("window.scrollBy(0, 500)")
-            await page.wait_for_timeout(800)
+            # ── Take 3 screenshots at different scroll depths ──────────────
+            screenshots_b64 = []
+            scroll_positions = [0, 900, 1800]   # top, middle, lower section
 
-            screenshot_bytes = await page.screenshot(type="jpeg", quality=80, full_page=False)
+            for scroll_y in scroll_positions:
+                await page.evaluate(f"window.scrollTo(0, {scroll_y})")
+                await page.wait_for_timeout(600)
+                shot = await page.screenshot(type="jpeg", quality=75, full_page=False)
+                b64 = base64.b64encode(shot).decode()
+                screenshots_b64.append(b64)
+                print(f"[browser_agent] screenshot at scroll={scroll_y} ({len(b64)//1024}KB)")
+
             await browser.close()
 
-        b64 = base64.b64encode(screenshot_bytes).decode()
-        print(f"[browser_agent] screenshot captured ({len(b64)//1024}KB)")
-        return b64
+        # ── Extract products from each screenshot, deduplicate ─────────────
+        all_products: list[dict] = []
+        seen_titles: set[str] = set()
+
+        for i, b64 in enumerate(screenshots_b64):
+            extracted = await _vision_extract(b64, site)
+            new_count = 0
+            for p in extracted:
+                title_key = p.get("title", "").lower().strip()[:60]
+                if title_key and title_key not in seen_titles:
+                    seen_titles.add(title_key)
+                    all_products.append(p)
+                    new_count += 1
+            print(f"[browser_agent] scroll {i}: {new_count} new products (total {len(all_products)})")
+
+        print(f"[browser_agent] ✓ {len(all_products)} unique products extracted")
+        return all_products
 
     except Exception as exc:
-        print(f"[browser_agent] screenshot error: {exc}")
-        return None
+        print(f"[browser_agent] browse error: {exc}")
+        return []
 
 
 # ── Vision extraction ───────────────────────────────────────────────────────
@@ -637,7 +691,7 @@ async def _vision_extract(screenshot_b64: str, site: str) -> list[dict]:
     try:
         response = await _client.chat.completions.create(
             model=_VISION_MODEL,
-            max_tokens=2000,
+            max_tokens=4000,
             messages=[
                 {
                     "role": "user",
@@ -650,7 +704,7 @@ async def _vision_extract(screenshot_b64: str, site: str) -> list[dict]:
                         },
                         {
                             "type": "text",
-                            "text": _EXTRACT_PROMPT,
+                            "text": _extract_prompt_for_site(site),
                         },
                     ],
                 }
@@ -676,6 +730,7 @@ async def _vision_extract(screenshot_b64: str, site: str) -> list[dict]:
                 "price": price,
                 "rating": item.get("rating"),
                 "review_count": item.get("review_count"),
+                "review_highlight": item.get("review_highlight"),
                 "image_url": None,
                 "variant_id": None,
                 "source": site,
@@ -705,13 +760,10 @@ async def search_products_stream(intent: dict, limit: int = 15):
     url = _SEARCH_URLS[site].format(query=query.replace(" ", "+"))
 
     yield _status(f"Opening {label}…")
-    screenshot_b64 = await _get_screenshot_b64(url, site)
+    products = await _browse_and_extract(url, site)
 
-    products = []
-
-    if screenshot_b64:
-        yield _status(f"Screenshot taken — reading with AI vision…")
-        products = await _vision_extract(screenshot_b64, site)
+    if products:
+        yield _status(f"AI vision scanned {len(products)} products — ranking…")
 
     # Fallback to demo data if live browsing failed or returned nothing
     if not products:
@@ -736,7 +788,14 @@ async def search_products_broad_stream(intent: dict):
     fallback_map = {"amazon": "flipkart", "flipkart": "amazon", "carwale": "olx", "olx": "carwale"}
     fallback_site = fallback_map.get(site, "amazon")
 
-    loose_intent = {"category": intent.get("category", "")}
+    # Preserve the full intent so budget/constraints/use_case aren't lost
+    loose_intent = {
+        "category": intent.get("category", ""),
+        "use_case": intent.get("use_case", ""),
+        "budget_max": intent.get("budget_max"),
+        "constraints": intent.get("constraints", []),
+        "priorities": intent.get("priorities", []),
+    }
     products = []
 
     async for event in search_products_stream(loose_intent, limit=10):
@@ -750,9 +809,7 @@ async def search_products_broad_stream(intent: dict):
         yield _status(f"Trying {label} instead…")
         query = _build_query(loose_intent)
         url = _SEARCH_URLS[fallback_site].format(query=query.replace(" ", "+"))
-        screenshot_b64 = await _get_screenshot_b64(url, fallback_site)
-        if screenshot_b64:
-            products = await _vision_extract(screenshot_b64, fallback_site)
+        products = await _browse_and_extract(url, fallback_site)
         if not products:
             products = _get_demo_products(fallback_site, intent)
 

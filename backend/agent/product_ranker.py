@@ -32,7 +32,8 @@ _REASONING_SYSTEM = (
 _ELIMINATION_SYSTEM = (
     "You are a shopping assistant. Given a user's shopping intent and a list of products that were NOT "
     "chosen as the best match, explain in one short honest sentence (max 10 words) why each wasn't selected. "
-    "Be specific — mention price, use case mismatch, or feature gaps. Never say 'Lower overall match score'."
+    "Be specific — mention price, use case mismatch, feature gaps, or lower ratings. "
+    "Never say 'Lower overall match score'. You may reference rating data if it's clearly weaker."
 )
 
 _REGRET_SYSTEM = "You assess purchase regret risk. Return only valid JSON, no extra text."
@@ -75,10 +76,11 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
             "image_url": top.get("image_url"),
             "variant_id": top.get("variant_id"),
             "tags": top.get("tags", []),
-            "source": top.get("source"),          # "amazon"|"flipkart"|"carwale"|"olx"
+            "source": top.get("source"),              # "amazon"|"flipkart"|"carwale"|"olx"
             "rating": top.get("rating"),
             "review_count": top.get("review_count"),
-            "url": top.get("url"),                # direct product URL
+            "review_highlight": top.get("review_highlight"),  # short buyer quote
+            "url": top.get("url"),                    # direct product URL
         },
         "confidence_score": top["_score"],
         "elimination": elimination,
@@ -87,10 +89,18 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
     # A: Stream reasoning tokens live
     reasoning_text = ""
     _budget = ("₹" + f"{intent['budget_max']:,}") if intent.get("budget_max") else "not specified"
+    _rating_str = (
+        f"{top['rating']}★ from {top['review_count']:,} buyers"
+        if top.get("rating") and top.get("review_count")
+        else (f"{top['rating']}★" if top.get("rating") else "no rating data")
+    )
+    _review_highlight = top.get("review_highlight") or ""
     reasoning_user_prompt = (
         f"Product: {top['title']}\n"
         f"Price: ₹{top['price']:,.0f}\n"
-        f"Description: {top.get('description', '')[:400]}\n"
+        f"Rating: {_rating_str}\n"
+        + (f"Buyer highlight: \"{_review_highlight}\"\n" if _review_highlight else "")
+        + f"Description: {top.get('description', '')[:400]}\n"
         f"Tags: {', '.join(top.get('tags', []))}\n\n"
         f"User:\n"
         f"- Budget: {_budget}\n"
@@ -98,7 +108,9 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
         f"- Priorities: {', '.join(intent.get('priorities', [])) or 'not specified'}\n"
         f"- Constraints: {', '.join(intent.get('constraints', [])) or 'none'}\n\n"
         f"Write 2-3 sentences explaining why this product fits this user. "
-        f"Mention their actual use case and constraints by name. Be direct and honest."
+        f"Mention their actual use case and constraints by name. "
+        f"If rating data is strong, reference it naturally (e.g. '4.6★ across 14,000 buyers confirms...'). "
+        f"Be direct and honest."
     )
 
     try:
@@ -175,7 +187,9 @@ async def _ai_elimination_reasons(intent: dict, products: list[dict]) -> list[di
     products_to_explain = products[:12]
 
     product_list = "\n".join(
-        f"{i+1}. {p['title']} (₹{p['price']:,.0f}) — tags: {', '.join(p.get('tags', []))}"
+        f"{i+1}. {p['title']} (₹{p['price']:,.0f})"
+        + (f" — {p['rating']}★/{p['review_count']:,} reviews" if p.get("rating") and p.get("review_count") else "")
+        + f" — tags: {', '.join(p.get('tags', []))}"
         for i, p in enumerate(products_to_explain)
     )
 
