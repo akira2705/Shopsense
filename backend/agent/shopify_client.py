@@ -1,17 +1,32 @@
+"""
+Shopify Admin GraphQL client for ShopSense.
+
+Uses the Admin API (not Storefront) so we can read all products and
+use richer vendor/tag/type filters.
+
+Required env vars:
+  SHOPIFY_STORE_URL   = yourstore.myshopify.com
+  SHOPIFY_ADMIN_TOKEN = shpat_xxxxxxxxxxxxxxxxxxxx
+
+Output format matches browser_agent.py so the confidence engine,
+ranker, and frontend need zero changes.
+"""
+
 import os
-from typing import Optional
+import re
 
 import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_STORE_URL = os.getenv("SHOPIFY_STORE_URL", "")
-_TOKEN = os.getenv("SHOPIFY_STOREFRONT_TOKEN", "")
-_ENDPOINT = f"https://{_STORE_URL}/api/2024-01/graphql.json"
-_HEADERS = {
+_STORE_URL   = os.getenv("SHOPIFY_STORE_URL", "").strip().rstrip("/")
+_ADMIN_TOKEN = os.getenv("SHOPIFY_ADMIN_TOKEN", "").strip()
+_API_VERSION = "2025-01"
+_ENDPOINT    = f"https://{_STORE_URL}/admin/api/{_API_VERSION}/graphql.json"
+_HEADERS     = {
     "Content-Type": "application/json",
-    "X-Shopify-Storefront-Access-Token": _TOKEN,
+    "X-Shopify-Access-Token": _ADMIN_TOKEN,
 }
 
 _PRODUCTS_QUERY = """
@@ -23,25 +38,32 @@ query SearchProducts($query: String!, $first: Int!) {
         title
         description
         tags
+        vendor
+        productType
+        onlineStoreUrl
         featuredImage {
           url
           altText
         }
-        priceRange {
+        priceRangeV2 {
           minVariantPrice {
             amount
             currencyCode
           }
         }
-        variants(first: 3) {
+        variants(first: 1) {
           edges {
             node {
               id
-              title
-              availableForSale
-              price {
-                amount
-              }
+              price
+            }
+          }
+        }
+        metafields(first: 10, namespace: "shopsense") {
+          edges {
+            node {
+              key
+              value
             }
           }
         }
@@ -51,67 +73,167 @@ query SearchProducts($query: String!, $first: Int!) {
 }
 """
 
-_CREATE_CART = """
-mutation CreateCart($variantId: ID!, $quantity: Int!) {
-  cartCreate(input: {
-    lines: [{ quantity: $quantity, merchandiseId: $variantId }]
-  }) {
-    cart {
-      checkoutUrl
-    }
-    userErrors {
-      field
-      message
-    }
-  }
-}
-"""
+
+# ─── Query builder ─────────────────────────────────────────────────────────────
+
+def _build_admin_query(intent: dict) -> str:
+    """
+    Build a Shopify Admin product search query string.
+
+    Shopify Admin query syntax:
+      - title:*keyword*     partial title match
+      - tag:keyword         tag match
+      - vendor:Brand        brand match
+      - product_type:Type   product type match
+      - status:ACTIVE       only live products
+
+    We combine category, use-case, and brand terms into an OR expression.
+    """
+    parts: list[str] = ["status:ACTIVE"]
+    or_terms: list[str] = []
+
+    category = (intent.get("category") or "").strip()
+    use_case = (intent.get("use_case") or "").strip()
+
+    # Primary keyword: category words
+    if category:
+        for word in category.split():
+            if len(word) >= 3:
+                or_terms.append(f'title:*{word}*')
+                or_terms.append(f'tag:{word}')
+
+    # Use-case words expand the match surface
+    if use_case:
+        for word in use_case.split():
+            if len(word) >= 3:
+                or_terms.append(f'tag:{word}')
+
+    # Brand constraint → vendor: filter (AND, not OR — it's a hard constraint)
+    brand = _extract_brand(intent)
+    if brand:
+        parts.append(f'vendor:"{brand}"')
+
+    if or_terms:
+        parts.append(f'({" OR ".join(or_terms)})')
+
+    return " ".join(parts) if parts else "status:ACTIVE"
 
 
-def _build_query_string(intent: dict) -> str:
-    parts = []
-    if intent.get("category"):
-        parts.append(intent["category"])
-    if intent.get("use_case"):
-        parts.append(intent["use_case"])
-    for constraint in (intent.get("constraints") or [])[:2]:
-        parts.append(constraint)
-    return " ".join(parts) if parts else "*"
+def _extract_brand(intent: dict) -> str:
+    """Pull brand from constraints list, e.g. 'brand: Nike' → 'Nike'."""
+    for c in intent.get("constraints", []):
+        if c.lower().startswith("brand:"):
+            return c.split(":", 1)[1].strip()
+    return ""
+
+
+# ─── Product parser ─────────────────────────────────────────────────────────────
+
+def _parse_metafields(mf_edges: list) -> dict:
+    result: dict = {}
+    for edge in mf_edges:
+        node = edge.get("node", {})
+        key = node.get("key", "")
+        val = node.get("value", "")
+        result[key] = val
+    return result
 
 
 def _parse_product(node: dict) -> dict:
-    price_str = (
-        node.get("priceRange", {})
-        .get("minVariantPrice", {})
-        .get("amount", "0")
-    )
-    try:
-        price = float(price_str)
-    except ValueError:
-        price = 0.0
-
+    # Price: prefer first variant price (most accurate), fall back to range
     variants = node.get("variants", {}).get("edges", [])
-    variant_id = variants[0]["node"]["id"] if variants else None
+    if variants:
+        try:
+            price = float(variants[0]["node"]["price"])
+        except (KeyError, ValueError, TypeError):
+            price = 0.0
+        variant_id = variants[0]["node"].get("id")
+    else:
+        try:
+            price = float(
+                node.get("priceRangeV2", {})
+                .get("minVariantPrice", {})
+                .get("amount", "0")
+            )
+        except (ValueError, TypeError):
+            price = 0.0
+        variant_id = None
 
+    # Image
     image = node.get("featuredImage")
     image_url = image["url"] if image else None
 
+    # Metafields
+    mf_edges = node.get("metafields", {}).get("edges", [])
+    mf = _parse_metafields(mf_edges)
+
+    # Rating / reviews from metafields
+    try:
+        rating = float(mf.get("rating", "") or 0) or None
+    except (ValueError, TypeError):
+        rating = None
+
+    try:
+        review_count = int(mf.get("review_count", "") or 0) or None
+    except (ValueError, TypeError):
+        review_count = None
+
+    review_highlight = mf.get("review_highlight") or None
+
+    # URL: use the online store URL if it exists, else build one from handle
+    url = node.get("onlineStoreUrl")
+    if not url and _STORE_URL:
+        # Derive handle from product title (Shopify convention: lowercase, hyphens)
+        slug = re.sub(r"[^a-z0-9]+", "-", node.get("title", "").lower()).strip("-")
+        url = f"https://{_STORE_URL}/products/{slug}"
+
+    # Tags: Shopify returns them as a flat list already
+    tags = node.get("tags", [])
+
+    # Extend tags with vendor and product_type for confidence engine matching
+    vendor = (node.get("vendor") or "").strip()
+    ptype  = (node.get("productType") or "").strip()
+    if vendor and vendor.lower() not in [t.lower() for t in tags]:
+        tags = [vendor] + tags
+    if ptype and ptype.lower() not in [t.lower() for t in tags]:
+        tags = tags + [ptype]
+
     return {
-        "id": node["id"],
-        "title": node["title"],
-        "description": node.get("description", ""),
-        "tags": node.get("tags", []),
-        "price": price,
-        "image_url": image_url,
-        "variant_id": variant_id,
+        "id":               node["id"],
+        "title":            node["title"],
+        "description":      node.get("description", ""),
+        "tags":             tags,
+        "price":            price,
+        "image_url":        image_url,
+        "variant_id":       variant_id,
+        "rating":           rating,
+        "review_count":     review_count,
+        "review_highlight": review_highlight,
+        "url":              url,
+        "source":           "shopify",
     }
 
 
-async def search_products(intent: dict, limit: int = 15) -> list[dict]:
-    query_string = _build_query_string(intent)
+# ─── Public API ─────────────────────────────────────────────────────────────────
+
+def is_configured() -> bool:
+    """Return True when both env vars are present and non-empty."""
+    return bool(_STORE_URL and _ADMIN_TOKEN)
+
+
+async def search_products(intent: dict, limit: int = 20) -> list[dict]:
+    """
+    Search Shopify store products matching the intent.
+    Returns [] on error or when not configured.
+    """
+    if not is_configured():
+        return []
+
+    query_string = _build_admin_query(intent)
+    print(f"[shopify] query: {query_string!r}")
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=12.0) as client:
             resp = await client.post(
                 _ENDPOINT,
                 headers=_HEADERS,
@@ -123,6 +245,11 @@ async def search_products(intent: dict, limit: int = 15) -> list[dict]:
             resp.raise_for_status()
             data = resp.json()
 
+            errors = data.get("errors")
+            if errors:
+                print(f"[shopify] GraphQL errors: {errors}")
+                return []
+
             edges = (
                 data.get("data", {})
                 .get("products", {})
@@ -130,43 +257,26 @@ async def search_products(intent: dict, limit: int = 15) -> list[dict]:
             )
             products = [_parse_product(e["node"]) for e in edges]
 
-            # Filter by budget
+            # Budget filter
             budget_max = intent.get("budget_max")
             if budget_max:
                 products = [p for p in products if p["price"] <= budget_max]
 
+            print(f"[shopify] found {len(products)} products")
             return products
 
-    except (httpx.TimeoutException, httpx.HTTPStatusError, Exception) as exc:
-        print(f"[shopify_client] search_products error: {exc}")
+    except httpx.TimeoutException:
+        print("[shopify] timeout")
+        return []
+    except httpx.HTTPStatusError as exc:
+        print(f"[shopify] HTTP {exc.response.status_code}: {exc.response.text[:300]}")
+        return []
+    except Exception as exc:
+        print(f"[shopify] error: {exc}")
         return []
 
 
 async def search_products_broad(intent: dict) -> list[dict]:
-    """Fallback: search without budget/tag constraints."""
-    loose_intent = {"category": intent.get("category", "")}
-    return await search_products(loose_intent, limit=10)
-
-
-async def create_cart(variant_id: str, quantity: int = 1) -> Optional[str]:
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                _ENDPOINT,
-                headers=_HEADERS,
-                json={
-                    "query": _CREATE_CART,
-                    "variables": {"variantId": variant_id, "quantity": quantity},
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return (
-                data.get("data", {})
-                .get("cartCreate", {})
-                .get("cart", {})
-                .get("checkoutUrl")
-            )
-    except Exception as exc:
-        print(f"[shopify_client] create_cart error: {exc}")
-        return None
+    """Broad search: ignore budget, search only by category."""
+    loose = {"category": intent.get("category", ""), "constraints": intent.get("constraints", [])}
+    return await search_products(loose, limit=15)

@@ -22,6 +22,7 @@ from agent.followup_generator import generate_followup
 from agent.intent_extractor import extract_intent
 from agent.product_ranker import rank_and_reason
 from agent.browser_agent import search_products_stream, search_products_broad_stream
+import agent.shopify_client as shopify_client
 
 app = FastAPI(title="ShopSense API", version="1.0.0")
 
@@ -106,15 +107,26 @@ async def chat(req: ChatRequest):
                     yield _sse({"type": "done"})
                     return
 
-            # 4. Browse + extract products (streams live status events)
+            # 4. Search products — Shopify store first, live browser as fallback
             products = []
-            async for event in search_products_stream(intent):
-                if event["type"] == "products":
-                    products = event["data"]
-                else:
-                    yield _sse(event)   # forward status to frontend
 
-            # 4a. Fallback: broad search if nothing matched
+            # 4a. Shopify store search (instant, no browser needed)
+            if shopify_client.is_configured():
+                yield _sse({"type": "status", "message": "Searching store…"})
+                products = await shopify_client.search_products(intent)
+                if not products:
+                    # Broad Shopify search (no budget filter)
+                    products = await shopify_client.search_products_broad(intent)
+
+            # 4b. Browser fallback when Shopify not configured or returned nothing
+            if not products:
+                async for event in search_products_stream(intent):
+                    if event["type"] == "products":
+                        products = event["data"]
+                    else:
+                        yield _sse(event)
+
+            # 4c. Browser broad fallback
             if not products:
                 yield _sse({
                     "type": "message",
@@ -126,14 +138,13 @@ async def chat(req: ChatRequest):
                     else:
                         yield _sse(event)
 
-            # 4b. Still nothing
+            # 4d. Still nothing
             if not products:
                 category = intent.get("category", "that")
                 yield _sse({
                     "type": "message",
                     "content": (
-                        f"I couldn't pull up live listings for {category} right now — "
-                        f"the site may be slow or blocking automated access. "
+                        f"I couldn't find any matching products for {category} right now. "
                         f"Try rephrasing, or give me a different category and I'll try again."
                     ),
                 })
