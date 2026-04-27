@@ -109,44 +109,88 @@ def _detect_site(url: str) -> str:
     return "generic"
 
 
+_INDIAN_CITIES = {
+    "coimbatore", "chennai", "bangalore", "bengaluru", "mumbai", "delhi",
+    "hyderabad", "pune", "kolkata", "ahmedabad", "jaipur", "surat",
+    "lucknow", "kanpur", "nagpur", "indore", "thane", "bhopal",
+    "visakhapatnam", "pimpri", "patna", "vadodara", "ghaziabad", "ludhiana",
+    "agra", "nashik", "faridabad", "meerut", "rajkot", "varanasi", "kochi",
+    "madurai", "salem", "trichy", "tiruchirappalli", "erode", "vellore",
+}
+
+
 def _build_google_query(intent: dict) -> str:
     """
-    Build a natural Google search query from intent.
-    E.g. "BMW car under 40 lakh Coimbatore Chennai buy"
+    Build a targeted Google search query from intent.
+    Brand always goes first. City name included if mentioned in constraints/use_case.
+    E.g. "BMW car for sale Coimbatore under 1 crore india"
     """
     parts = []
+    city = None
 
-    category = (intent.get("category") or "").strip()
-    if category:
-        parts.append(category)
-
-    use_case = (intent.get("use_case") or "").strip()
-    if use_case and use_case.lower() not in category.lower():
-        parts.append(use_case)
-
-    # Brand / key constraints (skip generic ones like "brand: BMW" → just "BMW")
+    # Extract brand from constraints
+    brand = None
+    other_constraints = []
     for c in (intent.get("constraints") or []):
         c = c.strip()
         if not c:
             continue
         if c.lower().startswith("brand:"):
             brand = c.split(":", 1)[1].strip()
-            if brand and brand.lower() not in " ".join(parts).lower():
-                parts.insert(0, brand)   # brand goes first
-        elif len(c) < 30 and c.lower() not in " ".join(parts).lower():
+        else:
+            # Check if this constraint is a city name
+            c_lower = c.lower()
+            if any(city_kw in c_lower for city_kw in _INDIAN_CITIES):
+                city = c  # keep as city
+            elif len(c) < 30:
+                other_constraints.append(c)
+
+    # Also look for city in use_case or category
+    for field in [intent.get("use_case") or "", intent.get("category") or ""]:
+        if not city:
+            for city_kw in _INDIAN_CITIES:
+                if city_kw in field.lower():
+                    city = city_kw.title()
+                    break
+
+    # Brand always first
+    if brand:
+        parts.append(brand)
+
+    category = (intent.get("category") or "").strip()
+    if category:
+        # Don't repeat brand in category
+        cat_clean = re.sub(re.escape(brand or ""), "", category, flags=re.IGNORECASE).strip() if brand else category
+        if cat_clean:
+            parts.append(cat_clean)
+
+    # Add "for sale" for vehicle/used searches to get listing pages not review pages
+    combined_lower = " ".join(parts).lower()
+    if any(w in combined_lower for w in ["car", "bike", "suv", "sedan", "motorcycle"]):
+        parts.append("for sale")
+
+    # Other constraints (fuel type, transmission, etc.) — skip seating/size for query clarity
+    for c in other_constraints[:2]:
+        if c.lower() not in combined_lower:
             parts.append(c)
+
+    # City
+    if city:
+        parts.append(str(city).title())
 
     # Budget
     budget_max = intent.get("budget_max")
     if budget_max:
-        if budget_max >= 100000:
+        if budget_max >= 10000000:   # 1 crore+
+            crores = budget_max / 10000000
+            parts.append(f"under {crores:.0f} crore")
+        elif budget_max >= 100000:
             lakhs = budget_max / 100000
             parts.append(f"under {lakhs:.0f} lakh")
         else:
             parts.append(f"under ₹{int(budget_max)}")
 
-    # Always anchor to India for buying intent
-    parts.append("buy india")
+    parts.append("india")
 
     return " ".join(p for p in parts if p)
 
@@ -677,6 +721,44 @@ def _sanity_filter(products: list[dict], intent: dict) -> list[dict]:
     return filtered if filtered else products
 
 
+def _brand_filter(products: list[dict], intent: dict) -> list[dict]:
+    """
+    Hard brand filter — if user specified a brand (e.g. BMW), remove every
+    product that doesn't mention that brand in its title or tags.
+    Returns unfiltered list only if NOTHING matched (so we never return empty-handed).
+    """
+    constraints = intent.get("constraints") or []
+    brand = None
+    for c in constraints:
+        if str(c).lower().startswith("brand:"):
+            brand = str(c).split(":", 1)[1].strip().lower()
+            break
+
+    # Also check category itself — "bmw car" puts brand in category
+    category = (intent.get("category") or "").lower()
+    _KNOWN_CAR_BRANDS = [
+        "bmw", "mercedes", "audi", "volkswagen", "toyota", "honda",
+        "hyundai", "maruti", "suzuki", "tata", "kia", "mahindra",
+        "skoda", "jeep", "ford", "nissan", "renault", "volvo",
+        "porsche", "lexus", "jaguar", "land rover",
+    ]
+    if not brand:
+        for b in _KNOWN_CAR_BRANDS:
+            if b in category:
+                brand = b
+                break
+
+    if not brand:
+        return products  # no brand constraint — return all
+
+    matching = [
+        p for p in products
+        if brand in (p.get("title", "") + " " + " ".join(p.get("tags", []))).lower()
+    ]
+    print(f"[browser_agent] brand filter '{brand}': {len(products)} → {len(matching)} products")
+    return matching if matching else products  # fallback to all if zero matched
+
+
 async def search_products_stream(intent: dict, limit: int = 15):
     """
     Google-first search pipeline:
@@ -750,6 +832,7 @@ async def search_products_stream(intent: dict, limit: int = 15):
     if products:
         yield _status(f"Found {len(products)} products across {len(links)} pages — filtering…")
         products = _sanity_filter(products, intent)
+        products = _brand_filter(products, intent)
 
     # Budget hard filter
     budget_max = intent.get("budget_max")
