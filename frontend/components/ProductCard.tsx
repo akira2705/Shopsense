@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { ExternalLink, AlertCircle, TrendingUp, Star } from "lucide-react";
 import Image from "next/image";
+import { useState } from "react";
 import EliminationPanel from "./EliminationPanel";
 import type { RecommendationData } from "@/lib/api";
 
@@ -35,6 +36,7 @@ const REGRET_CONFIG = {
 export default function ProductCard({ data, isStreaming = false }: Props) {
   const { product, reasoning, regret_risk, regret_scenario, tradeoff, confidence_score, elimination } = data;
   const regret = REGRET_CONFIG[regret_risk] || REGRET_CONFIG.low;
+  const [imgFailed, setImgFailed] = useState(false);
 
   const SOURCE_LABELS: Record<string, string> = {
     amazon:   "Amazon.in",
@@ -70,7 +72,7 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
       <div className="flex gap-0">
         {/* Product image */}
         <div className="w-24 min-w-24 bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center">
-          {product.image_url ? (
+          {product.image_url && !imgFailed ? (
             <div className="relative w-24 h-full min-h-24">
               <Image
                 src={product.image_url}
@@ -78,6 +80,8 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
                 fill
                 className="object-cover"
                 sizes="96px"
+                unoptimized
+                onError={() => setImgFailed(true)}
               />
             </div>
           ) : (
