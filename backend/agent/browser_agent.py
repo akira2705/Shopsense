@@ -527,37 +527,7 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
             except Exception as img_err:
                 print(f"[browser_agent] image URL extraction failed: {img_err}")
 
-            # ── Extract individual product page links from DOM ──────────────
-            _LINK_SELECTORS = {
-                "amazon":   "[data-component-type='s-search-result'] h2 a",
-                "flipkart": "._1AtVbE a[href*='/p/'], a[href*='/buy/']",
-                "carwale":  "a[href*='/cars/'], a[href*='/used/'], a[href*='/bikes/']",
-                "olx":      "li[data-aut-id='itemBox'] a, a[href*='/item/']",
-                "generic":  "article a, [class*='card'] a, [class*='product'] a, [class*='listing'] a",
-            }
-            try:
-                link_sel = _LINK_SELECTORS.get(site, _LINK_SELECTORS["generic"])
-                js_link_sel = link_sel.replace("'", "\\'")
-                raw_links = await page.evaluate(f"""
-                    () => {{
-                        const seen = new Set();
-                        const out = [];
-                        const anchors = document.querySelectorAll('{js_link_sel}');
-                        for (const a of anchors) {{
-                            const href = a.href;
-                            if (!href || !href.startsWith('http')) continue;
-                            if (seen.has(href)) continue;
-                            seen.add(href);
-                            out.push(href);
-                            if (out.length >= 20) break;
-                        }}
-                        return out;
-                    }}
-                """)
-                product_links = [l for l in raw_links if l]
-                print(f"[browser_agent] {len(product_links)} product links extracted from DOM")
-            except Exception as link_err:
-                print(f"[browser_agent] product link extraction failed: {link_err}")
+            # page_url is the canonical URL Google sent us to — used as product link
 
             await browser.close()
 
@@ -582,24 +552,21 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
                     new_count += 1
             print(f"[browser_agent] scroll {i}: {new_count} new products (total {len(all_products)})")
 
-        # ── Attach image URLs and product links by position on page ──────────
-        _GENERIC_PATHS = {"/", "/used/", "/new/", "/search/", "/items/", "/s", ""}
-
-        def _is_generic(link: str) -> bool:
-            """True if the link is just a homepage or category root — not a listing."""
+        def _is_generic_url(link: str) -> bool:
+            """True if the link is a homepage or broad category root, not a specific listing."""
             try:
                 from urllib.parse import urlparse
                 path = urlparse(link).path.rstrip("/") or "/"
-                return path in {"/", "/used", "/new", "/search", "/items", "/s", "/cars"} \
-                    or len(path) < 4
+                return path in {"/", "/used", "/new", "/search", "/items", "/s", "/cars", "/bikes"} \
+                    or len(path) < 5
             except Exception:
                 return True
 
-        def _fallback_search_url(product: dict, site: str, base_url: str) -> str:
-            """Build a site-specific search URL for the product title."""
+        def _title_search_url(product: dict, site: str) -> str:
+            """Build a site-specific search URL from the product title — reliable fallback."""
             title = product.get("title", "").strip()
             if not title:
-                return base_url
+                return page_url
             q = quote_plus(title)
             if site == "amazon":   return f"https://www.amazon.in/s?k={q}"
             if site == "flipkart": return f"https://www.flipkart.com/search?q={q}"
@@ -611,14 +578,13 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
             if i < len(img_urls) and not p.get("image_url"):
                 p["image_url"] = img_urls[i]
 
-            # Direct product page link: DOM link > page URL > site search URL
-            dom_link = product_links[i] if i < len(product_links) else None
-            if dom_link and not _is_generic(dom_link):
-                p["url"] = dom_link
-            elif page_url and not _is_generic(page_url):
+            # URL strategy:
+            # 1. page_url if it's a specific listing (e.g. carwale.com/bmw-cars/z4/)
+            # 2. Title-based search URL on the same site (always relevant to the product)
+            if page_url and not _is_generic_url(page_url):
                 p["url"] = page_url
             else:
-                p["url"] = _fallback_search_url(p, site, page_url)
+                p["url"] = _title_search_url(p, site)
 
         print(f"[browser_agent] ✓ {len(all_products)} unique products extracted")
         return all_products
