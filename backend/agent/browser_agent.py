@@ -539,12 +539,42 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
             print(f"[browser_agent] scroll {i}: {new_count} new products (total {len(all_products)})")
 
         # ── Attach image URLs and product links by position on page ──────────
+        _GENERIC_PATHS = {"/", "/used/", "/new/", "/search/", "/items/", "/s", ""}
+
+        def _is_generic(link: str) -> bool:
+            """True if the link is just a homepage or category root — not a listing."""
+            try:
+                from urllib.parse import urlparse
+                path = urlparse(link).path.rstrip("/") or "/"
+                return path in {"/", "/used", "/new", "/search", "/items", "/s", "/cars"} \
+                    or len(path) < 4
+            except Exception:
+                return True
+
+        def _fallback_search_url(product: dict, site: str, base_url: str) -> str:
+            """Build a site-specific search URL for the product title."""
+            title = product.get("title", "").strip()
+            if not title:
+                return base_url
+            q = quote_plus(title)
+            if site == "amazon":   return f"https://www.amazon.in/s?k={q}"
+            if site == "flipkart": return f"https://www.flipkart.com/search?q={q}"
+            if site == "carwale":  return f"https://www.carwale.com/search/?q={q}"
+            if site == "olx":      return f"https://www.olx.in/items/q-{q}"
+            return f"https://www.google.com/search?q={q}"
+
         for i, p in enumerate(all_products):
             if i < len(img_urls) and not p.get("image_url"):
                 p["image_url"] = img_urls[i]
-            # Direct product page link — prefer DOM link, fall back to page URL
-            if not p.get("url"):
-                p["url"] = product_links[i] if i < len(product_links) else page_url
+
+            # Direct product page link: DOM link > page URL > site search URL
+            dom_link = product_links[i] if i < len(product_links) else None
+            if dom_link and not _is_generic(dom_link):
+                p["url"] = dom_link
+            elif page_url and not _is_generic(page_url):
+                p["url"] = page_url
+            else:
+                p["url"] = _fallback_search_url(p, site, page_url)
 
         print(f"[browser_agent] ✓ {len(all_products)} unique products extracted")
         return all_products
