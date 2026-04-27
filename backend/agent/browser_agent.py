@@ -12,11 +12,13 @@ Sites:
   - OLX.in         → used / second-hand items (cars, bikes, phones, furniture)
 """
 
+import asyncio
 import base64
 import json
 import os
 import re
 from typing import Optional
+from urllib.parse import quote_plus
 
 from openai import AsyncOpenAI
 from playwright.async_api import async_playwright
@@ -34,7 +36,7 @@ _client = AsyncOpenAI(
 
 _VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
-# ── Search URL templates ────────────────────────────────────────────────────
+# ── Fallback direct-search URLs (used only if Google gives 0 links) ─────────
 
 _SEARCH_URLS = {
     "amazon":   "https://www.amazon.in/s?k={query}",
@@ -85,14 +87,187 @@ _SITE_HINTS = {
 }
 
 def _extract_prompt_for_site(site: str) -> str:
-    labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
+    labels = {
+        "amazon": "Amazon.in", "flipkart": "Flipkart",
+        "carwale": "CarWale / CarDekho / Cars24", "olx": "OLX.in",
+        "generic": "product listing page",
+    }
     return _BASE_EXTRACT_PROMPT.format(
         site_label=labels.get(site, site),
-        site_hints=_SITE_HINTS.get(site, ""),
+        site_hints=_SITE_HINTS.get(site, "Extract every visible product with title, price, and specs."),
     )
 
 
-# ── Site routing ─────────────────────────────────────────────────────────────
+def _detect_site(url: str) -> str:
+    """Map a URL to a site key for the right vision prompt."""
+    u = url.lower()
+    if "amazon.in" in u:   return "amazon"
+    if "flipkart.com" in u: return "flipkart"
+    if any(s in u for s in ["carwale.com", "cardekho.com", "cars24.com",
+                              "zigwheels.com", "spinny.com", "droom.in"]): return "carwale"
+    if "olx.in" in u:       return "olx"
+    return "generic"
+
+
+def _build_google_query(intent: dict) -> str:
+    """
+    Build a natural Google search query from intent.
+    E.g. "BMW car under 40 lakh Coimbatore Chennai buy"
+    """
+    parts = []
+
+    category = (intent.get("category") or "").strip()
+    if category:
+        parts.append(category)
+
+    use_case = (intent.get("use_case") or "").strip()
+    if use_case and use_case.lower() not in category.lower():
+        parts.append(use_case)
+
+    # Brand / key constraints (skip generic ones like "brand: BMW" → just "BMW")
+    for c in (intent.get("constraints") or []):
+        c = c.strip()
+        if not c:
+            continue
+        if c.lower().startswith("brand:"):
+            brand = c.split(":", 1)[1].strip()
+            if brand and brand.lower() not in " ".join(parts).lower():
+                parts.insert(0, brand)   # brand goes first
+        elif len(c) < 30 and c.lower() not in " ".join(parts).lower():
+            parts.append(c)
+
+    # Budget
+    budget_max = intent.get("budget_max")
+    if budget_max:
+        if budget_max >= 100000:
+            lakhs = budget_max / 100000
+            parts.append(f"under {lakhs:.0f} lakh")
+        else:
+            parts.append(f"under ₹{int(budget_max)}")
+
+    # Always anchor to India for buying intent
+    parts.append("buy india")
+
+    return " ".join(p for p in parts if p)
+
+
+# ── Phase 1: Google search → extract result URLs ────────────────────────────
+
+_SKIP_DOMAINS = {
+    "google.com", "youtube.com", "wikipedia.org", "facebook.com",
+    "twitter.com", "instagram.com", "reddit.com", "quora.com",
+    "indiamart.com", "justdial.com", "sulekha.com",  # B2B / directory
+}
+
+_PREFER_DOMAINS = [
+    "amazon.in", "flipkart.com", "carwale.com", "cardekho.com",
+    "cars24.com", "spinny.com", "zigwheels.com", "droom.in",
+    "olx.in", "snapdeal.com", "myntra.com", "ajio.com",
+]
+
+
+async def _google_search_links(query: str, on_status=None, max_links: int = 3) -> list[tuple[str, str]]:
+    """
+    Phase 1 of the new search pipeline.
+    Opens Google, searches for `query`, scrapes the organic result links from the DOM
+    (no screenshot/vision needed — just link extraction).
+    Returns list of (url, site_key) tuples, preferred sites first.
+    """
+    async def _cb(t):
+        if on_status:
+            try: await on_status(t)
+            except Exception: pass
+
+    search_url = f"https://www.google.com/search?q={quote_plus(query)}&gl=in&hl=en&num=10"
+    await _cb("Searching Google…")
+
+    try:
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox", "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
+            context = await browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/124.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1366, "height": 900},
+                locale="en-IN",
+            )
+            page = await context.new_page()
+            await page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+            )
+
+            await page.goto(search_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(1500)
+
+            # Extract all href links visible on the SERP
+            raw_links: list[str] = await page.evaluate("""
+                () => {
+                    const seen = new Set();
+                    const out = [];
+                    const anchors = document.querySelectorAll('a[href]');
+                    for (const a of anchors) {
+                        let href = a.href || '';
+                        // Google wraps some links in /url?q= redirects
+                        try {
+                            const u = new URL(href);
+                            if (u.hostname === 'www.google.com' && u.pathname === '/url') {
+                                href = u.searchParams.get('q') || href;
+                            }
+                        } catch(e) {}
+                        if (!href.startsWith('http')) continue;
+                        try {
+                            const host = new URL(href).hostname.replace('www.', '');
+                            const blocked = ['google.', 'youtube.', 'gstatic.', 'googleapis.',
+                                             'wikipedia.', 'facebook.', 'twitter.', 'instagram.',
+                                             'reddit.', 'quora.', 'accounts.'];
+                            if (blocked.some(b => host.includes(b))) continue;
+                        } catch(e) { continue; }
+                        if (seen.has(href)) continue;
+                        seen.add(href);
+                        out.push(href);
+                        if (out.length >= 10) break;
+                    }
+                    return out;
+                }
+            """)
+            await browser.close()
+
+        print(f"[browser_agent] Google returned {len(raw_links)} raw links")
+
+        # Score: preferred domains first, then the rest
+        preferred, others = [], []
+        for url in raw_links:
+            try:
+                host = __import__('urllib.parse', fromlist=['urlparse']).urlparse(url).netloc.replace('www.', '')
+            except Exception:
+                host = ""
+            if any(d in host for d in _PREFER_DOMAINS):
+                preferred.append(url)
+            else:
+                others.append(url)
+
+        ordered = preferred + others
+        picked = ordered[:max_links]
+
+        result = [(url, _detect_site(url)) for url in picked]
+        print(f"[browser_agent] picked links: {[r[0] for r in result]}")
+        return result
+
+    except Exception as exc:
+        print(f"[browser_agent] Google search failed: {exc}")
+        return []
+
+
+# ── Site routing (kept as fallback only) ────────────────────────────────────
 # IMPORTANT: order matters — used/second-hand check before vehicle check,
 # so "used car" → OLX, not CarWale (CarWale = new cars/bikes research)
 
@@ -310,13 +485,12 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
             await browser.close()
 
         # ── Extract products from all screenshots IN PARALLEL ──────────────
-        import asyncio as _asyncio
         await _status_cb("AI vision reading products…")
         all_products: list[dict] = []
         seen_titles: set[str] = set()
 
         vision_tasks = [_vision_extract(b64, site) for b64 in screenshots_b64]
-        results = await _asyncio.gather(*vision_tasks, return_exceptions=True)
+        results = await asyncio.gather(*vision_tasks, return_exceptions=True)
 
         for i, extracted in enumerate(results):
             if isinstance(extracted, Exception):
@@ -439,119 +613,108 @@ def _sanity_filter(products: list[dict], intent: dict) -> list[dict]:
 
 async def search_products_stream(intent: dict, limit: int = 15):
     """
-    Async generator — yields status dicts then a final products dict.
-    Streams live status from inside the browser loop via asyncio Queue.
+    Google-first search pipeline:
+      1. Google the natural-language query → get top product page URLs
+      2. Visit those pages in parallel → vision-extract products
+      3. Merge, filter, rank
+    Falls back to direct site search if Google returns no links.
     """
-    import asyncio
-
-    site = _pick_site(intent)
-    query = _build_query(intent)
-    site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
-    label = site_labels.get(site, site)
-    url = _SEARCH_URLS[site].format(query=query.replace(" ", "+"))
-
-    yield _status(f"Opening {label}…")
-
-    # ── Stream live status from browser via asyncio Queue ──────────────────
-    q: asyncio.Queue = asyncio.Queue()
+    query = _build_google_query(intent)
+    status_q: asyncio.Queue = asyncio.Queue()
 
     async def on_status(text: str):
-        await q.put(text)
+        await status_q.put(text)
 
-    browser_task = asyncio.create_task(_browse_and_extract(url, site, on_status=on_status))
+    # ── Phase 1: Google search (runs in this coroutine, not a task) ───────────
+    yield _status(f"Searching Google for: {query}")
 
-    # Hard 50s overall timeout — don't hang forever if site blocks us
-    deadline = asyncio.get_event_loop().time() + 50
+    links = await _google_search_links(query, on_status=on_status, max_links=3)
 
-    # Drain queue while browser is working — yields status to frontend live
-    while not browser_task.done():
+    while not status_q.empty():
+        yield _status(status_q.get_nowait())
+
+    # ── If Google failed, fall back to direct site navigation ─────────────────
+    if not links:
+        site = _pick_site(intent)
+        fallback_query = _build_query(intent)
+        url = _SEARCH_URLS[site].format(query=fallback_query.replace(" ", "+"))
+        site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
+        yield _status(f"Google unavailable — opening {site_labels.get(site, site)} directly…")
+        links = [(url, site)]
+
+    # ── Phase 2: visit pages in parallel ─────────────────────────────────────
+    from urllib.parse import urlparse
+    link_labels = [urlparse(u).netloc for u, _ in links]
+    yield _status(f"Opening {len(links)} pages: {', '.join(link_labels)}…")
+
+    browse_tasks = [
+        asyncio.create_task(_browse_and_extract(url, site, on_status=on_status))
+        for url, site in links
+    ]
+
+    # Hard 60s total deadline across all tasks
+    deadline = asyncio.get_event_loop().time() + 60
+
+    while not all(t.done() for t in browse_tasks):
         if asyncio.get_event_loop().time() > deadline:
-            browser_task.cancel()
-            yield _status("Site took too long — trying again with broader search…")
+            for t in browse_tasks:
+                if not t.done():
+                    t.cancel()
+            yield _status("Pages took too long — using what we have so far…")
             break
+        # Drain status queue
         try:
-            text = await asyncio.wait_for(q.get(), timeout=0.4)
+            text = await asyncio.wait_for(status_q.get(), timeout=0.4)
             yield _status(text)
         except asyncio.TimeoutError:
             pass
 
-    # Drain any remaining status messages
-    while not q.empty():
-        yield _status(q.get_nowait())
+    while not status_q.empty():
+        yield _status(status_q.get_nowait())
 
-    try:
-        products = await browser_task
-    except asyncio.CancelledError:
-        products = []
+    # Collect results from all tasks
+    products: list[dict] = []
+    for task in browse_tasks:
+        try:
+            result = await task
+            products.extend(result)
+        except (asyncio.CancelledError, Exception):
+            pass
 
     if products:
-        yield _status(f"AI vision found {len(products)} products — filtering…")
+        yield _status(f"Found {len(products)} products across {len(links)} pages — filtering…")
         products = _sanity_filter(products, intent)
 
+    # Budget hard filter
     budget_max = intent.get("budget_max")
     if budget_max:
-        within = [p for p in products if p["price"] <= budget_max]
+        within = [p for p in products if p.get("price", float("inf")) <= budget_max]
         if within:
-            products = within  # only apply if it doesn't wipe everything
+            products = within
 
     count = len(products)
-    yield _status(f"Found {count} product{'s' if count != 1 else ''} — ranking by confidence…")
+    yield _status(f"{count} product{'s' if count != 1 else ''} matched — ranking by confidence…")
     yield {"type": "products", "data": products[:limit]}
 
 
 async def search_products_broad_stream(intent: dict):
-    """Broad fallback — also yields status events."""
-    site = _pick_site(intent)
-    site_labels = {"amazon": "Amazon.in", "flipkart": "Flipkart", "carwale": "CarWale", "olx": "OLX.in"}
-
-    # Fallback site logic
-    fallback_map = {"amazon": "flipkart", "flipkart": "amazon", "carwale": "olx", "olx": "carwale"}
-    fallback_site = fallback_map.get(site, "amazon")
-
-    # Preserve the full intent so budget/constraints/use_case aren't lost
+    """
+    Broad search — strips priorities/missing_info and re-runs through the
+    same Google-first pipeline with a simpler query.
+    """
     loose_intent = {
-        "category": intent.get("category", ""),
-        "use_case": intent.get("use_case", ""),
+        "category":   intent.get("category", ""),
+        "use_case":   intent.get("use_case", ""),
         "budget_max": intent.get("budget_max"),
         "constraints": intent.get("constraints", []),
-        "priorities": intent.get("priorities", []),
+        "priorities":  [],   # drop priorities for broad search
     }
     products = []
-
     async for event in search_products_stream(loose_intent, limit=10):
         if event["type"] == "products":
             products = event["data"]
         else:
             yield event
-
-    if not products:
-        import asyncio
-        label = site_labels.get(fallback_site, fallback_site)
-        yield _status(f"Trying {label} instead…")
-        query = _build_query(loose_intent)
-        url = _SEARCH_URLS[fallback_site].format(query=query.replace(" ", "+"))
-        q2: asyncio.Queue = asyncio.Queue()
-        async def _on_status2(t: str): await q2.put(t)
-        task2 = asyncio.create_task(_browse_and_extract(url, fallback_site, on_status=_on_status2))
-        deadline2 = asyncio.get_event_loop().time() + 50
-        while not task2.done():
-            if asyncio.get_event_loop().time() > deadline2:
-                task2.cancel()
-                yield _status("Second site also timed out.")
-                break
-            try:
-                yield _status(await asyncio.wait_for(q2.get(), timeout=0.4))
-            except asyncio.TimeoutError:
-                pass
-        while not q2.empty():
-            yield _status(q2.get_nowait())
-        try:
-            products = await task2
-        except asyncio.CancelledError:
-            products = []
-        if products:
-            products = _sanity_filter(products, intent)
-
     yield {"type": "products", "data": products}
 
 
