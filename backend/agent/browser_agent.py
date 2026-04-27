@@ -251,29 +251,29 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
             """)
 
             print(f"[browser_agent] navigating → {url}")
-            await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
 
-            # Wait for product cards
+            # Wait for product cards — short timeout, proceed anyway
             selector = _WAIT_SELECTORS.get(site, "")
             if selector:
                 try:
-                    await page.wait_for_selector(selector, timeout=8000)
+                    await page.wait_for_selector(selector, timeout=5000)
                     print(f"[browser_agent] ✓ product cards detected ({site})")
                 except Exception:
                     print(f"[browser_agent] selector timeout — proceeding anyway")
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(1500)
             else:
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(1500)
 
-            # ── Take 3 screenshots at different scroll depths ──────────────
+            # ── Take 2 screenshots (top + mid scroll) ──────────────────────
             screenshots_b64 = []
-            scroll_positions = [0, 900, 1800]
+            scroll_positions = [0, 900]
 
             for i, scroll_y in enumerate(scroll_positions):
-                await _status_cb(f"Reading results — section {i + 1} of {len(scroll_positions)}…")
+                await _status_cb(f"Reading page — section {i + 1} of {len(scroll_positions)}…")
                 await page.evaluate(f"window.scrollTo(0, {scroll_y})")
-                await page.wait_for_timeout(600)
-                shot = await page.screenshot(type="jpeg", quality=75, full_page=False)
+                await page.wait_for_timeout(400)
+                shot = await page.screenshot(type="jpeg", quality=70, full_page=False)
                 b64 = base64.b64encode(shot).decode()
                 screenshots_b64.append(b64)
                 print(f"[browser_agent] screenshot at scroll={scroll_y} ({len(b64)//1024}KB)")
@@ -309,13 +309,19 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
 
             await browser.close()
 
-        # ── Extract products from each screenshot, deduplicate ─────────────
+        # ── Extract products from all screenshots IN PARALLEL ──────────────
+        import asyncio as _asyncio
         await _status_cb("AI vision reading products…")
         all_products: list[dict] = []
         seen_titles: set[str] = set()
 
-        for i, b64 in enumerate(screenshots_b64):
-            extracted = await _vision_extract(b64, site)
+        vision_tasks = [_vision_extract(b64, site) for b64 in screenshots_b64]
+        results = await _asyncio.gather(*vision_tasks, return_exceptions=True)
+
+        for i, extracted in enumerate(results):
+            if isinstance(extracted, Exception):
+                print(f"[browser_agent] vision task {i} failed: {extracted}")
+                continue
             new_count = 0
             for p in extracted:
                 title_key = p.get("title", "").lower().strip()[:60]
@@ -454,8 +460,15 @@ async def search_products_stream(intent: dict, limit: int = 15):
 
     browser_task = asyncio.create_task(_browse_and_extract(url, site, on_status=on_status))
 
+    # Hard 50s overall timeout — don't hang forever if site blocks us
+    deadline = asyncio.get_event_loop().time() + 50
+
     # Drain queue while browser is working — yields status to frontend live
     while not browser_task.done():
+        if asyncio.get_event_loop().time() > deadline:
+            browser_task.cancel()
+            yield _status("Site took too long — trying again with broader search…")
+            break
         try:
             text = await asyncio.wait_for(q.get(), timeout=0.4)
             yield _status(text)
@@ -466,7 +479,10 @@ async def search_products_stream(intent: dict, limit: int = 15):
     while not q.empty():
         yield _status(q.get_nowait())
 
-    products = await browser_task
+    try:
+        products = await browser_task
+    except asyncio.CancelledError:
+        products = []
 
     if products:
         yield _status(f"AI vision found {len(products)} products — filtering…")
@@ -517,14 +533,22 @@ async def search_products_broad_stream(intent: dict):
         q2: asyncio.Queue = asyncio.Queue()
         async def _on_status2(t: str): await q2.put(t)
         task2 = asyncio.create_task(_browse_and_extract(url, fallback_site, on_status=_on_status2))
+        deadline2 = asyncio.get_event_loop().time() + 50
         while not task2.done():
+            if asyncio.get_event_loop().time() > deadline2:
+                task2.cancel()
+                yield _status("Second site also timed out.")
+                break
             try:
                 yield _status(await asyncio.wait_for(q2.get(), timeout=0.4))
             except asyncio.TimeoutError:
                 pass
         while not q2.empty():
             yield _status(q2.get_nowait())
-        products = await task2
+        try:
+            products = await task2
+        except asyncio.CancelledError:
+            products = []
         if products:
             products = _sanity_filter(products, intent)
 
