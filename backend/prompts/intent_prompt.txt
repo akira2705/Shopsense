@@ -29,6 +29,8 @@ Priority of what to ask about (missing_info should reflect this order):
 
 Rules:
 - NEVER add to missing_info something already present in history or existing_intent
+- BRAND CONSTRAINT (CRITICAL): If the user mentions a specific brand (BMW, Mercedes, Audi, Toyota, Apple, Samsung, Nike, etc.), you MUST add it to constraints as "brand: BMW" (or whatever brand they said). This is a hard requirement — the user wants ONLY that brand.
+  Examples: "I want a BMW" → constraints: ["brand: BMW"] | "looking for Nike shoes" → constraints: ["brand: Nike"] | "buy me a Samsung phone" → constraints: ["brand: Samsung"]
 - Indian currency conversion (CRITICAL — get this right):
     1 lakh = 100,000 INR
     5 lakhs / 5L = 500,000
