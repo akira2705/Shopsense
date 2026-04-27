@@ -97,6 +97,22 @@ def _keyword_fallback(message: str, existing: dict) -> dict:
     if "flat feet" in msg or "flat foot" in msg:
         if "flat feet support" not in constraints:
             constraints.append("flat feet support")
+
+    # Brand constraint fallback
+    _KNOWN_BRANDS = [
+        "bmw", "mercedes", "audi", "volkswagen", "toyota", "honda", "hyundai",
+        "maruti", "tata", "kia", "mahindra", "skoda", "jeep", "ford", "suzuki",
+        "apple", "samsung", "oneplus", "xiaomi", "realme", "oppo", "vivo", "google",
+        "sony", "lg", "dell", "hp", "lenovo", "asus", "msi", "acer",
+        "nike", "adidas", "puma", "reebok", "skechers", "new balance",
+    ]
+    brand_constraint_exists = any(c.startswith("brand:") for c in constraints)
+    if not brand_constraint_exists:
+        for brand in _KNOWN_BRANDS:
+            if re.search(r'\b' + re.escape(brand) + r'\b', msg):
+                constraints.append(f"brand: {brand}")
+                break
+
     intent["constraints"] = constraints
 
     # Use case keywords

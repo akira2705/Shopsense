@@ -126,6 +126,14 @@ def _constraint_violated(constraint: str, product: dict) -> bool:
     c = constraint.lower().strip()
     text = _text(product)
 
+    # Brand constraint: "brand: bmw" → product must mention that brand
+    if c.startswith("brand:"):
+        brand = c.split(":", 1)[1].strip()
+        if not brand:
+            return False
+        # Check if the brand appears anywhere in the product text
+        return brand not in text
+
     # Seating capacity
     for seating_key in ["8 seater", "seating for 8", "8-seater"]:
         if seating_key in c:
