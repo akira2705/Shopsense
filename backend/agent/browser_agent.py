@@ -453,12 +453,13 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
                 screenshots_b64.append(b64)
                 print(f"[browser_agent] screenshot at scroll={scroll_y} ({len(b64)//1024}KB)")
 
-            # ── Extract product image URLs directly from the DOM ───────────
+            # ── Extract product image URLs and page links from the DOM ──────
             img_urls: list[str] = []
+            product_links: list[str] = []
+            page_url = page.url  # the actual URL we landed on (after redirects)
             try:
                 img_sel = _IMAGE_SELECTORS.get(site, "")
                 if img_sel:
-                    # Escape single quotes for JS string
                     js_sel = img_sel.replace("'", "\\'")
                     img_urls = await page.evaluate(f"""
                         () => {{
@@ -481,6 +482,38 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
                     print(f"[browser_agent] {len(img_urls)} image URLs extracted from DOM")
             except Exception as img_err:
                 print(f"[browser_agent] image URL extraction failed: {img_err}")
+
+            # ── Extract individual product page links from DOM ──────────────
+            _LINK_SELECTORS = {
+                "amazon":   "[data-component-type='s-search-result'] h2 a",
+                "flipkart": "._1AtVbE a[href*='/p/'], a[href*='/buy/']",
+                "carwale":  "a[href*='/cars/'], a[href*='/used/'], a[href*='/bikes/']",
+                "olx":      "li[data-aut-id='itemBox'] a, a[href*='/item/']",
+                "generic":  "article a, [class*='card'] a, [class*='product'] a, [class*='listing'] a",
+            }
+            try:
+                link_sel = _LINK_SELECTORS.get(site, _LINK_SELECTORS["generic"])
+                js_link_sel = link_sel.replace("'", "\\'")
+                raw_links = await page.evaluate(f"""
+                    () => {{
+                        const seen = new Set();
+                        const out = [];
+                        const anchors = document.querySelectorAll('{js_link_sel}');
+                        for (const a of anchors) {{
+                            const href = a.href;
+                            if (!href || !href.startsWith('http')) continue;
+                            if (seen.has(href)) continue;
+                            seen.add(href);
+                            out.push(href);
+                            if (out.length >= 20) break;
+                        }}
+                        return out;
+                    }}
+                """)
+                product_links = [l for l in raw_links if l]
+                print(f"[browser_agent] {len(product_links)} product links extracted from DOM")
+            except Exception as link_err:
+                print(f"[browser_agent] product link extraction failed: {link_err}")
 
             await browser.close()
 
@@ -505,10 +538,13 @@ async def _browse_and_extract(url: str, site: str, on_status=None) -> list[dict]
                     new_count += 1
             print(f"[browser_agent] scroll {i}: {new_count} new products (total {len(all_products)})")
 
-        # ── Attach image URLs to products by position on page ─────────────
+        # ── Attach image URLs and product links by position on page ──────────
         for i, p in enumerate(all_products):
             if i < len(img_urls) and not p.get("image_url"):
                 p["image_url"] = img_urls[i]
+            # Direct product page link — prefer DOM link, fall back to page URL
+            if not p.get("url"):
+                p["url"] = product_links[i] if i < len(product_links) else page_url
 
         print(f"[browser_agent] ✓ {len(all_products)} unique products extracted")
         return all_products
