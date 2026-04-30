@@ -112,7 +112,7 @@ async def chat(req: ChatRequest):
 
             # 4a. Shopify store search (instant, no browser needed)
             if shopify_client.is_configured():
-                yield _sse({"type": "status", "message": "Searching store…"})
+                yield _sse({"type": "status", "text": "Searching store…"})
                 products = await shopify_client.search_products(intent)
                 if not products:
                     # Broad Shopify search (no budget filter)
