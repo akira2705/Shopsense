@@ -45,6 +45,7 @@ ShopSense is an AI shopping agent that **commits to one recommendation** with a 
 | `Skincare for oily skin under ₹1000` | Follow-up question flow |
 | `Sony noise cancelling headphones` | Brand constraint enforcement |
 | `Laptop for college under ₹45000` | Use-case + budget scoring |
+| `Family car under ₹10 lakh` | Multi-category product matching |
 | Or tap the 🎤 mic and speak your request | Voice input |
 
 ---
@@ -147,7 +148,7 @@ ShopSense queries a live Shopify dev store as its primary product source:
 - **Metafields:** Each product carries `shopsense.rating`, `shopsense.review_count`, `shopsense.review_highlight` — used by the confidence engine and product card
 - **Product URL:** `onlineStoreUrl` (real listing page) with slug-based fallback
 
-The store contains 90+ hand-crafted products across running shoes, skincare, smartphones, laptops, and headphones — each with realistic INR pricing, detailed tags, and review metadata.
+The store contains **199 products** across running shoes, skincare, smartphones, laptops, headphones, cars, board games, toys, home appliances, and accessories — each with realistic INR pricing, detailed tags, and review metadata. All products have real product images sourced automatically.
 
 If Shopify returns no results (brand mismatch, out-of-budget), the browser agent fires as fallback.
 
@@ -204,9 +205,10 @@ Health check: http://localhost:8000/health → `{"status":"ok"}`
 
 #### Populate the Shopify store (first time only)
 ```bash
-python scripts/populate_shopify.py
+python scripts/populate_shopify.py     # creates 199 products with metadata (~2 min)
+python scripts/fix_product_names.py    # strips fake tier suffixes from product names
+python scripts/upload_images_ddg.py    # uploads real product images via DuckDuckGo (no API key needed)
 ```
-Creates 90 products with ratings and review metadata. Takes ~2 minutes.
 
 ### 3. Frontend
 
@@ -275,7 +277,13 @@ Shopsense/
 │   ├── prompts/
 │   │   └── intent_prompt.txt      Intent extraction prompt
 │   └── scripts/
-│       └── populate_shopify.py    Bulk-create 90 products via REST API
+│       ├── populate_shopify.py    Bulk-create 199 products via REST API
+│       ├── fix_product_names.py   Strip fake tier suffixes, delete duplicates
+│       ├── upload_images_ddg.py   Upload real product images via DuckDuckGo
+│       ├── upload_images_google.py Google Custom Search fallback (100/day)
+│       ├── remove_all_images.py   Bulk image removal utility
+│       ├── remove_bad_images.py   Remove images by filename pattern
+│       └── list_products.py       Paginated product audit tool
 │
 ├── frontend/
 │   ├── app/page.tsx               Entry point

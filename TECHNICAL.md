@@ -210,9 +210,29 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 ---
 
-## 11. Limitations
+## 11. Store Data Pipeline
 
-- **Shopify product images:** Dev store products have no images — ProductCard shows a placeholder icon
+**Scripts in `backend/scripts/`** — run once to set up the store:
+
+| Script | Purpose |
+|---|---|
+| `populate_shopify.py` | Creates 199 products with INR pricing, tags, and `shopsense.*` metafields |
+| `fix_product_names.py` | Strips auto-generated tier suffixes (Value/Plus/Pro/Elite/Ultra) from 140 products; deletes 2 duplicates |
+| `upload_images_ddg.py` | Searches DuckDuckGo Images for each product by name, scores results (prefers brand CDNs + large images), uploads to Shopify. Cascades through up to 10 candidates if Shopify rejects a URL (hotlink protection). No API key required. |
+| `upload_images_google.py` | Google Custom Search API fallback — higher quality but 100 queries/day free limit |
+| `remove_bad_images.py` | Deletes images matching a filename pattern (used to clean up 22 wrong images uploaded to skincare products due to a word-boundary bug: `"car" in "skincare"`) |
+| `list_products.py` | Paginated product audit — prints ID, vendor, product_type, title |
+
+**Image pipeline design decisions:**
+- Single shared `DDGS()` session across all queries — avoids per-query bot detection that triggers 403 rate limits
+- 10-second inter-query delay to stay within DDG's rate window
+- Word-boundary regex (`\bcar\b`) for product type matching — prevents "Skincare" matching the car query path
+- Cascade fallback: Shopify 422 (hotlink rejection) → try next candidate URL from ranked DDG results
+
+---
+
+## 12. Limitations
+
 - **Railway cold starts:** If the backend sleeps, first request takes ~15s to wake. Hit `/health` before a live demo
 - **Browser agent rate limits:** Google may throttle headless browsers. Retry logic is not implemented — the 60s timeout fires instead
 - **Playwright on Railway:** Requires `playwright install-deps` which adds ~2 min to first deploy
@@ -229,6 +249,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 | `playwright` | ≥1.40 | Headless Chromium browser automation |
 | `httpx` | 0.27.0 | Async HTTP for Shopify Admin API |
 | `openai` | ≥1.0 | Groq-compatible client (same interface) |
+| `ddgs` | latest | DuckDuckGo image search — no API key, no daily quota |
 | `python-dotenv` | 1.0.1 | Env var loading |
 | `next` | 15.x | React framework, App Router |
 | `framer-motion` | latest | Confidence ring, message animations |

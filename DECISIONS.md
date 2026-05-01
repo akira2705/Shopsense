@@ -181,4 +181,18 @@
 
 ---
 
-*Last updated: April 2026*
+### D-20: DuckDuckGo over Google Custom Search for product images
+
+**Considered:** Google Custom Search API (100 free queries/day), Bing Image Search API, Playwright scraping Amazon/Flipkart  
+**Chose:** DuckDuckGo via the `ddgs` library  
+**Because:** Google's 100/day quota blocks a full 199-product run in one shot. Playwright scraping was completely blocked by bot detection (0/201 success rate). DuckDuckGo has no API key, no daily quota, and returns usable image results with proper filtering.
+
+**Key implementation detail:** Creating a new `DDGS()` instance per query instantly triggers rate limits (403). A single shared session across all queries + a 10-second inter-query delay keeps DDG happy.
+
+**Word-boundary bug caught mid-run:** `"car" in "skincare"` is True in Python — all skincare products were being sent to the car image query path (returning Audi photos). Fixed with `re.search(r'\bcar\b', product_type)`. 22 bad images were deleted and re-uploaded correctly.
+
+**Cascade fallback:** Shopify returns 422 when it can't fetch a URL (CDN hotlink protection — e.g., assets.bose.com). Script now tries up to 10 ranked DDG candidates per product before marking a failure. Final result: 199/199 products imaged, 0 failures.
+
+---
+
+*Last updated: May 2026*
