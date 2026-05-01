@@ -33,7 +33,7 @@ ShopSense is an AI agent that **commits to one recommendation** with a transpare
 
 ## Live Demo
 
-**Try these at https://shopsense.vercel.app:**
+**Try these at https://shopsense-eight.vercel.app:**
 
 | Say this | What it demonstrates |
 |---|---|
