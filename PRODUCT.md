@@ -113,19 +113,25 @@ Showing ruled-out products with one-sentence AI reasons ("Over budget — ₹89,
 - Shopify store product search with structured scoring
 - Live browser fallback (Amazon, Flipkart, CarWale, OLX)
 - Confidence score with breakdown and conversation journey
-- Streaming AI reasoning
+- Streaming AI reasoning with live token-by-token display
 - Regret risk + tradeoff assessment
 - Elimination panel with AI reasons
-- Brand constraint enforcement
-- Budget filtering
-- Voice input (Web Speech API)
+- Brand constraint enforcement + category isolation
+- Budget filtering + budget optimizer card
+- Voice input with live interim transcript + waveform animation (Web Speech API)
+- Auto-read aloud: recommendation reasoning via Web Speech Synthesis (en-IN)
+- Real product images (199 products, DuckDuckGo-sourced, Shopify-hosted)
+- Shimmer skeleton loading states for images and reasoning
+- "Not this one" reject flow — fetches next-ranked pick
+- Add to Cart via Shopify cart URL
+- Per-product "Ask anything" panel (Groq LLM)
+- Share / copy recommendation
 
 ### Out of scope (v1)
-- Order placement / cart management
-- Price alerts or tracking
-- Multi-recommendation comparison mode
-- Product images (Shopify store products have no images in dev store)
-- User accounts / history
+- Order placement / payment processing
+- Price alerts or price tracking
+- Multi-recommendation side-by-side comparison mode
+- User accounts / persistent history across sessions
 
 ---
 

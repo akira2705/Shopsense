@@ -31,6 +31,9 @@ ShopSense is an AI shopping agent that **commits to one recommendation** with a 
 | Generic reasoning | Regret-risk framing + honest tradeoff |
 | Static product data | Live Shopify store + AI browser fallback |
 | Just text | Animated confidence ring that builds as you talk |
+| One-shot voice input | Live transcript + waveform bars as you speak |
+| Silent | Auto-reads recommendations aloud (toggleable, en-IN) |
+| Products appear instantly | Shimmer skeleton → reasoning streams token by token |
 
 ---
 
@@ -46,7 +49,8 @@ ShopSense is an AI shopping agent that **commits to one recommendation** with a 
 | `Sony noise cancelling headphones` | Brand constraint enforcement |
 | `Laptop for college under ₹45000` | Use-case + budget scoring |
 | `Family car under ₹10 lakh` | Multi-category product matching |
-| Or tap the 🎤 mic and speak your request | Voice input |
+| Or tap the 🎤 mic and speak your request | Live transcript + waveform animation |
+| Enable 🔊 Read Aloud in sidebar | Auto-TTS reads recommendation after streaming |
 
 ---
 
@@ -57,9 +61,12 @@ User (voice or text)
         │
         ▼
 Next.js 15 frontend (Vercel)
-  • Animated confidence ring
-  • Live status stream
+  • Animated confidence ring (glow filter at ≥80%)
+  • Live status stream with spring-physics typing dots
   • Quick-start chips + voice input (Web Speech API)
+  • Live interim transcript + waveform bars while speaking
+  • Shimmer skeleton → token-by-token reasoning stream
+  • Auto-TTS toggle (reads recommendation aloud, en-IN)
         │  SSE streaming
         ▼
 FastAPI backend (Railway)
@@ -154,9 +161,11 @@ If Shopify returns no results (brand mismatch, out-of-budget), the browser agent
 
 ---
 
-## Voice Input
+## Voice Input & Speech Output
 
-Tap the 🎤 microphone button and speak your request in English (Indian accent optimised with `en-IN` locale). The browser's built-in Speech Recognition (Chrome/Edge) transcribes it, fills the input, and auto-sends after 600ms — so you can see what was captured before it goes. No API key, no cost, zero latency.
+**Voice input:** Tap the 🎤 microphone and speak. As you talk, your words appear live in the input field — interim results stream in character-by-character via `interimResults: true`. Five animated waveform bars pulse on the mic button. The input border turns red while listening. When you stop speaking, the final transcript is auto-sent after 600ms. No API key, no cost, zero latency. Uses `en-IN` locale (Chrome/Edge).
+
+**Auto-read aloud:** Toggle the 🔊 **Read Aloud** button in the sidebar (or mobile header). When on, the agent reads the recommendation reasoning aloud after streaming completes — using `SpeechSynthesisUtterance` with `en-IN` locale at 0.88× rate for natural Indian English. The Read button on each product card also lets you re-play or stop any individual card. Waveform bars animate on the button while speaking.
 
 ---
 
@@ -303,16 +312,17 @@ Shopsense/
 
 The backend streams real-time events to the frontend:
 
-| Event type | When | Payload |
+| Event type | When | Frontend action |
 |---|---|---|
-| `confidence` | After intent extracted | `score`, `breakdown` |
-| `followup` | If score < 80 and < 2 questions asked | `question` |
-| `status` | While searching / browsing | `text` (e.g. "Searching store…") |
-| `message` | Agent commentary | `content` |
-| `recommendation_start` | Product picked | `product`, `elimination` |
-| `token` | Reasoning streaming | `text` (one chunk) |
-| `recommendation_done` | Stream complete | `regret_risk`, `tradeoff` |
-| `done` | Request complete | — |
+| `confidence` | After intent extracted | Animates ring, updates breakdown sidebar |
+| `followup` | Score < 80 and < 2 questions asked | Appends agent question bubble |
+| `status` | While searching / browsing | Slides status text in with icon |
+| `message` | Agent commentary | Appends text bubble |
+| `budget_pick` | Cheaper alternative found | Renders BudgetOptimizerCard |
+| `recommendation_start` | Product picked | Renders card with shimmer skeleton reasoning |
+| `token` | Reasoning chunk | Appends to reasoning, shows streaming cursor |
+| `recommendation_done` | Stream complete | Patches regret/tradeoff; triggers auto-TTS if enabled |
+| `done` | Request complete | Clears status |
 
 ---
 

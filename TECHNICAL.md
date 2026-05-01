@@ -174,13 +174,63 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 `streamChat()` is an async generator that yields typed `SSEEvent` objects. The ChatInterface consumes these with `for await (const event of streamChat(...))` and dispatches to React state setters by event type.
 
-**Streaming recommendation:** The `recommendation_start` event creates the product card with empty reasoning. Subsequent `token` events append to the last recommendation's reasoning string in-place. `recommendation_done` patches in regret_risk and tradeoff. The card is never re-mounted — only its reasoning string grows.
+**Streaming recommendation:** The `recommendation_start` event creates the product card with empty reasoning — the card renders immediately with a 3-line shimmer skeleton in the reasoning area. Subsequent `token` events append to the reasoning string in-place; the skeleton disappears and a blinking cursor appears once the first token arrives. `recommendation_done` patches in regret_risk and tradeoff, and fires auto-TTS if enabled.
 
 **Session state:** A UUID session ID is generated client-side on mount. It's sent with every request and echoed back in the first confidence event. The backend uses it to look up the in-memory session store `{followup_count, intent}`.
 
 ---
 
-## 9. Failure Handling
+## 9. Voice & Speech System
+
+**File:** `frontend/components/ChatInterface.tsx` — `MicButton` component + `ChatInterface`
+
+### Voice Input
+- `SpeechRecognition` (Chrome/Edge) with `interimResults: true` and `lang: "en-IN"`
+- **Interim results** stream into the input field in real time — the user sees their words appear as they speak
+- **Final result** fires `onTranscript` → auto-sent after 600ms
+- `onListeningChange` prop lifts listening state to `ChatInterface`, which applies a red ring + inline waveform to the input field
+- On error (`not-allowed`, `no-speech`): dismissable toast above the mic button
+
+### Waveform animation
+Five bars (`div.wave-bar`) animate with a CSS `wave-bar` keyframe (scaleY 0.35 → 1.0 → 0.35, staggered delays) while the mic is active. Same animation is reused for the Read Aloud button while TTS is speaking, and as a smaller version inside the input field border. No canvas, no Web Audio API — pure CSS.
+
+### Speech Output (Auto-TTS)
+- Toggle: **Read Aloud** button in sidebar (`Volume2` / `VolumeX` icon, violet when active)
+- State stored in both React state (`autoSpeak`) and a `autoSpeakRef` ref to avoid stale closures inside the async event loop
+- Reasoning text accumulated token-by-token in `lastReasoningRef` throughout the stream
+- On `recommendation_done`: if `autoSpeakRef.current` is true, calls `window.speechSynthesis.speak()` with the accumulated text (400ms delay for card to settle), `lang: "en-IN"`, `rate: 0.88`
+- `window.speechSynthesis.cancel()` called on reset and when toggle is turned off
+- ProductCard also has a per-card Read button with its own TTS + waveform state (independent of auto-speak)
+
+---
+
+## 10. Animation System
+
+**Files:** `frontend/app/globals.css`, `frontend/components/ChatInterface.tsx`, `frontend/components/ProductCard.tsx`, `frontend/components/ConfidenceMeter.tsx`
+
+### CSS keyframes (globals.css)
+| Keyframe | Usage |
+|---|---|
+| `shimmer` | Skeleton placeholders (image loading, reasoning loading) |
+| `wave-bar` | Voice waveform bars (mic button, input border, TTS button) |
+| `blink-cursor` | Streaming text cursor after first token arrives |
+
+### Skeleton loading
+- **Image:** `opacity-0` + absolute shimmer overlay while `imgLoaded === false`; `onLoad` triggers `setImgLoaded(true)` → 500ms `transition-opacity` fade-in
+- **Reasoning:** 3 shimmer lines rendered when `isStreaming && !reasoning`; replaced by real text on first token
+
+### Framer Motion usage
+| Component | Animation |
+|---|---|
+| Messages | `opacity: 0→1, y: 14→0, scale: 0.97→1` with cubic-bezier spring |
+| Quick-start chips | Staggered entry (`delay: i × 0.065s`), spring stiffness 380 |
+| ProductCard | `whileHover: { y: -2 }` + CSS `hover:shadow-md` transition |
+| ConfidenceMeter ring | SVG glow filter (`feGaussianBlur`) applied when score ≥ 80 |
+| Celebration | Dual expanding rings (`scale: 0.85→1.5/1.8`, `opacity: 0.6→0`) on hitting 80% |
+| Status typing dots | `motion.span` with `y: 0→-5→0` spring, staggered delays |
+| Mic ripple rings | Dual `scale: 1→1.7, opacity: 0.45→0` rings, offset by 0.45s |
+
+## 11. Failure Handling
 
 | Failure | Handling |
 |---|---|
@@ -195,7 +245,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 ---
 
-## 10. Deployment
+## 12. Deployment
 
 | Service | Platform | Config |
 |---|---|---|
@@ -210,7 +260,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 ---
 
-## 11. Store Data Pipeline
+## 13. Store Data Pipeline
 
 **Scripts in `backend/scripts/`** — run once to set up the store:
 
@@ -231,7 +281,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 ---
 
-## 12. Limitations
+## 14. Limitations
 
 - **Railway cold starts:** If the backend sleeps, first request takes ~15s to wake. Hit `/health` before a live demo
 - **Browser agent rate limits:** Google may throttle headless browsers. Retry logic is not implemented — the 60s timeout fires instead
@@ -241,7 +291,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 
 ---
 
-## 12. Key Libraries
+## 15. Key Libraries
 
 | Library | Version | Purpose |
 |---|---|---|
@@ -252,6 +302,7 @@ Fires only when Shopify returns no results or is unconfigured. Uses Playwright (
 | `ddgs` | latest | DuckDuckGo image search — no API key, no daily quota |
 | `python-dotenv` | 1.0.1 | Env var loading |
 | `next` | 15.x | React framework, App Router |
-| `framer-motion` | latest | Confidence ring, message animations |
+| `framer-motion` | latest | All animations: ring, cards, chips, status dots, celebration |
 | `tailwindcss` | v4 | Utility CSS |
-| `lucide-react` | latest | Icons |
+| `lucide-react` | latest | Icons including voice (Mic, Volume2, VolumeX, Sparkles) |
+| Web Speech API | browser-native | Voice input (`SpeechRecognition`) + TTS (`speechSynthesis`) |
