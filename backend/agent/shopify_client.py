@@ -199,6 +199,10 @@ def _parse_product(node: dict) -> dict:
         review_count = None
 
     review_highlight = mf.get("review_highlight") or None
+    category = mf.get("category") or None
+    subcategory = mf.get("subcategory") or None
+    model_type = mf.get("model_type") or None
+    price_band = mf.get("price_band") or None
 
     # URL: use the online store URL if it exists, else build one from handle
     url = node.get("onlineStoreUrl")
@@ -229,6 +233,10 @@ def _parse_product(node: dict) -> dict:
         "rating":           rating,
         "review_count":     review_count,
         "review_highlight": review_highlight,
+        "category":         category,
+        "subcategory":      subcategory,
+        "model_type":       model_type,
+        "price_band":       price_band,
         "url":              url,
         "source":           "shopify",
     }
