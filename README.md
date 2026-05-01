@@ -2,9 +2,12 @@
 
 > **Most shopping agents show you more options. ShopSense eliminates everything wrong for you until only one confident recommendation remains.**
 
-**Live demo:** [https://shopsense-eight.vercel.app ]
+**Live demo:** https://shopsense-eight.vercel.app  
+**Demo video:** <!-- TODO: add YouTube unlisted link here before submission -->  
 **Hackathon:** Kasparro Agentic Commerce — Track 1 — April 2026  
 **Team:** Shivaathmajan P & Ayswaryaa V — B.Tech IT, Kumaraguru College of Technology
+
+📄 [Product Document](./PRODUCT.md) · [Technical Document](./TECHNICAL.md) · [Decision Log](./DECISIONS.md)
 
 ---
 
