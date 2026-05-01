@@ -26,9 +26,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_STORE_URL   = os.getenv("SHOPIFY_STORE_URL", "").strip().rstrip("/")
-_ADMIN_TOKEN = os.getenv("SHOPIFY_ADMIN_TOKEN", "").strip()
-_API_VERSION = "2025-01"
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _normalize_shop_domain(value: str) -> str:
+    value = value.strip().rstrip("/")
+    value = value.removeprefix("https://").removeprefix("http://")
+    return value.split("/", 1)[0]
+
+
+_STORE_URL = _normalize_shop_domain(
+    _first_env("SHOPIFY_STORE_URL", "SHOPIFY_SHOP_DOMAIN")
+)
+_ADMIN_TOKEN = _first_env("SHOPIFY_ADMIN_TOKEN", "SHOPIFY_ADMIN_ACCESS_TOKEN")
+_API_VERSION = os.getenv("SHOPIFY_API_VERSION", "2025-01").strip() or "2025-01"
 _ENDPOINT    = f"https://{_STORE_URL}/admin/api/{_API_VERSION}/graphql.json"
 _HEADERS     = {
     "Content-Type": "application/json",
@@ -728,7 +744,10 @@ async def set_metafields(client: httpx.AsyncClient, owner_id: str, product: dict
 
 async def main():
     if not _STORE_URL or not _ADMIN_TOKEN:
-        print("ERROR: Set SHOPIFY_STORE_URL and SHOPIFY_ADMIN_TOKEN in backend/.env")
+        print(
+            "ERROR: Set SHOPIFY_STORE_URL and SHOPIFY_ADMIN_TOKEN in backend/.env "
+            "or use SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN."
+        )
         sys.exit(1)
 
     print(f"🛍  Populating {_STORE_URL} with {len(PRODUCTS)} products…\n")

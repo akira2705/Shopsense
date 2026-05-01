@@ -8,6 +8,10 @@ Required env vars:
   SHOPIFY_STORE_URL   = yourstore.myshopify.com
   SHOPIFY_ADMIN_TOKEN = shpat_xxxxxxxxxxxxxxxxxxxx
 
+Aliases also supported:
+  SHOPIFY_SHOP_DOMAIN         = yourstore.myshopify.com
+  SHOPIFY_ADMIN_ACCESS_TOKEN  = shpat_xxxxxxxxxxxxxxxxxxxx
+
 Output format matches browser_agent.py so the confidence engine,
 ranker, and frontend need zero changes.
 """
@@ -20,9 +24,25 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_STORE_URL   = os.getenv("SHOPIFY_STORE_URL", "").strip().rstrip("/")
-_ADMIN_TOKEN = os.getenv("SHOPIFY_ADMIN_TOKEN", "").strip()
-_API_VERSION = "2025-01"
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = os.getenv(name, "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _normalize_shop_domain(value: str) -> str:
+    value = value.strip().rstrip("/")
+    value = re.sub(r"^https?://", "", value)
+    return value.split("/", 1)[0]
+
+
+_STORE_URL = _normalize_shop_domain(
+    _first_env("SHOPIFY_STORE_URL", "SHOPIFY_SHOP_DOMAIN")
+)
+_ADMIN_TOKEN = _first_env("SHOPIFY_ADMIN_TOKEN", "SHOPIFY_ADMIN_ACCESS_TOKEN")
+_API_VERSION = os.getenv("SHOPIFY_API_VERSION", "2025-01").strip() or "2025-01"
 _ENDPOINT    = f"https://{_STORE_URL}/admin/api/{_API_VERSION}/graphql.json"
 _HEADERS     = {
     "Content-Type": "application/json",
@@ -221,6 +241,11 @@ def is_configured() -> bool:
     return bool(_STORE_URL and _ADMIN_TOKEN)
 
 
+async def list_products(limit: int = 25) -> list[dict]:
+    """Return active Shopify products without applying an intent keyword filter."""
+    return await _fetch_products("status:ACTIVE", limit)
+
+
 async def search_products(intent: dict, limit: int = 20) -> list[dict]:
     """
     Search Shopify store products matching the intent.
@@ -230,6 +255,29 @@ async def search_products(intent: dict, limit: int = 20) -> list[dict]:
         return []
 
     query_string = _build_admin_query(intent)
+    print(f"[shopify] query: {query_string!r}")
+
+    products = await _fetch_products(query_string, limit)
+
+    # Budget filter
+    budget_max = intent.get("budget_max")
+    if budget_max:
+        products = [p for p in products if p["price"] <= budget_max]
+
+    return products
+
+
+async def search_products_broad(intent: dict) -> list[dict]:
+    """Broad search: ignore budget, search only by category."""
+    loose = {"category": intent.get("category", ""), "constraints": intent.get("constraints", [])}
+    return await search_products(loose, limit=15)
+
+
+async def _fetch_products(query_string: str, limit: int) -> list[dict]:
+    if not is_configured():
+        return []
+
+    limit = max(1, min(int(limit), 100))
     print(f"[shopify] query: {query_string!r}")
 
     try:
@@ -256,12 +304,6 @@ async def search_products(intent: dict, limit: int = 20) -> list[dict]:
                 .get("edges", [])
             )
             products = [_parse_product(e["node"]) for e in edges]
-
-            # Budget filter
-            budget_max = intent.get("budget_max")
-            if budget_max:
-                products = [p for p in products if p["price"] <= budget_max]
-
             print(f"[shopify] found {len(products)} products")
             return products
 
@@ -274,9 +316,3 @@ async def search_products(intent: dict, limit: int = 20) -> list[dict]:
     except Exception as exc:
         print(f"[shopify] error: {exc}")
         return []
-
-
-async def search_products_broad(intent: dict) -> list[dict]:
-    """Broad search: ignore budget, search only by category."""
-    loose = {"category": intent.get("category", ""), "constraints": intent.get("constraints", [])}
-    return await search_products(loose, limit=15)
