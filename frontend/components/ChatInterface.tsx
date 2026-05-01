@@ -5,13 +5,25 @@ import { Send, RotateCcw, Globe, Camera, Cpu, Sparkles, Mic, MicOff } from "luci
 import { motion, AnimatePresence } from "framer-motion";
 import { v4 as uuidv4 } from "uuid";
 import ProductCard from "./ProductCard";
+import BudgetOptimizerCard from "./BudgetOptimizerCard";
 import ConfidenceMeter from "./ConfidenceMeter";
-import { streamChat, resetSession } from "@/lib/api";
-import type { ChatMessage, ConfidenceBreakdown, RecommendationData } from "@/lib/api";
+import { streamChat, resetSession, nextPick, askProduct } from "@/lib/api";
+import type {
+  ChatMessage,
+  ConfidenceBreakdown,
+  RecommendationData,
+  BudgetPickData,
+} from "@/lib/api";
 
 interface JourneyStep {
   label: string;
   score: number;
+}
+
+// Extended message type to support budget picks and inline helpers
+interface UIMessage extends ChatMessage {
+  budgetPick?: BudgetPickData;
+  pickNumber?: number;
 }
 
 // Web Speech API type declarations
@@ -31,38 +43,40 @@ interface SpeechRecognitionInstance extends EventTarget {
   onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
 }
-declare const SpeechRecognition: new () => SpeechRecognitionInstance;
-declare const webkitSpeechRecognition: new () => SpeechRecognitionInstance;
 
 const OPENING_MESSAGE =
   "Tell me what you're looking for — budget, what it's for, anything on your mind. I'll tell you when I'm confident enough to recommend.";
 
 const QUICK_STARTS = [
-  { emoji: "👟", label: "Running shoes", text: "Running shoes for flat feet under ₹5000" },
-  { emoji: "🎮", label: "Gaming laptop", text: "Gaming laptop with RTX GPU and good screen under ₹80000" },
-  { emoji: "🚗", label: "Used car",      text: "Used car under 5 lakhs in good condition" },
-  { emoji: "💻", label: "Laptop",        text: "Laptop under ₹45000 for college and coding" },
-  { emoji: "💄", label: "Skincare",      text: "Skincare for oily skin under ₹1000" },
+  { emoji: "👟", label: "Running shoes",  text: "Running shoes for flat feet under ₹5000" },
+  { emoji: "🎮", label: "Gaming laptop",  text: "Gaming laptop with RTX GPU and good screen under ₹80000" },
+  { emoji: "🚗", label: "Used car",       text: "Used car under 5 lakhs in good condition" },
+  { emoji: "💻", label: "Laptop",         text: "Laptop under ₹45000 for college and coding" },
+  { emoji: "💄", label: "Skincare",       text: "Skincare for oily skin under ₹1000" },
+  { emoji: "🎁", label: "Surprise me",    text: "Surprise me — recommend something useful under ₹3000" },
 ];
+
+const BUDGET_CHIPS = ["+₹5K", "+₹10K", "+₹20K"];
 
 // Map status text → icon
 function StatusIcon({ text }: { text: string }) {
   const t = text.toLowerCase();
-  if (t.includes("opening") || t.includes("browsing"))           return <Globe  size={12} className="text-indigo-500 animate-pulse" />;
-  if (t.includes("reading") || t.includes("section"))            return <Camera size={12} className="text-indigo-500 animate-pulse" />;
-  if (t.includes("vision") || t.includes("ai") || t.includes("ranking")) return <Cpu size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("opening") || t.includes("browsing"))                         return <Globe  size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("reading") || t.includes("section"))                          return <Camera size={12} className="text-indigo-500 animate-pulse" />;
+  if (t.includes("vision") || t.includes("ai") || t.includes("ranking"))       return <Cpu    size={12} className="text-indigo-500 animate-pulse" />;
   return <Cpu size={12} className="text-indigo-500 animate-pulse" />;
 }
 
 // Mic button with recording state
 function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) => void; disabled: boolean }) {
-  const [isListening, setIsListening]     = useState(false);
-  const [isSupported, setIsSupported]     = useState(false);
-  const [errorMsg, setErrorMsg]           = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const [errorMsg, setErrorMsg]       = useState("");
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
-    const supported = typeof window !== "undefined" &&
+    const supported =
+      typeof window !== "undefined" &&
       ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
     setIsSupported(supported);
   }, []);
@@ -72,23 +86,18 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
       recognitionRef.current?.stop();
       return;
     }
-
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const SR = ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) as new () => SpeechRecognitionInstance;
       const recognition = new SR();
-      recognition.continuous = false;
+      recognition.continuous     = false;
       recognition.interimResults = false;
-      recognition.lang = "en-IN";
+      recognition.lang           = "en-IN";
 
       recognition.onresult = (e: SpeechRecognitionEvent) => {
-        const transcript = Array.from(e.results)
-          .map(r => r[0].transcript)
-          .join(" ")
-          .trim();
+        const transcript = Array.from(e.results).map(r => r[0].transcript).join(" ").trim();
         if (transcript) onTranscript(transcript);
       };
-
       recognition.onerror = (e: SpeechRecognitionErrorEvent) => {
         setIsListening(false);
         if (e.error === "not-allowed") setErrorMsg("Mic access denied — allow microphone in browser settings");
@@ -96,10 +105,7 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
         else setErrorMsg(`Mic error: ${e.error}`);
         setTimeout(() => setErrorMsg(""), 3500);
       };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
+      recognition.onend = () => setIsListening(false);
 
       recognitionRef.current = recognition;
       recognition.start();
@@ -124,7 +130,6 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
             : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
         }`}
       >
-        {/* Pulse ring when recording */}
         {isListening && (
           <motion.span
             className="absolute inset-0 rounded-xl bg-red-400"
@@ -137,7 +142,6 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
         </span>
       </motion.button>
 
-      {/* Error tooltip */}
       <AnimatePresence>
         {errorMsg && (
           <motion.div
@@ -155,7 +159,7 @@ function MicButton({ onTranscript, disabled }: { onTranscript: (text: string) =>
 }
 
 export default function ChatInterface() {
-  const [messages, setMessages]             = useState<ChatMessage[]>([{ role: "agent", content: OPENING_MESSAGE }]);
+  const [messages, setMessages]             = useState<UIMessage[]>([{ role: "agent", content: OPENING_MESSAGE }]);
   const [input, setInput]                   = useState("");
   const [isStreaming, setIsStreaming]        = useState(false);
   const [sessionId, setSessionId]           = useState(() => uuidv4());
@@ -165,22 +169,25 @@ export default function ChatInterface() {
   const [isStreamingReasoning, setIsStreamingReasoning] = useState(false);
   const [statusText, setStatusText]         = useState("");
   const [celebrated, setCelebrated]         = useState(false);
+  const [rejectingIdx, setRejectingIdx]     = useState<number | null>(null);
+  const [showBudgetChips, setShowBudgetChips] = useState(false);
+  // track the last budget entered for chip adjustments
+  const lastBudgetRef = useRef<number | null>(null);
 
   const bottomRef  = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLInputElement>(null);
   const prevConfidence = useRef(0);
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, statusText]);
 
-  // Celebrate when confidence first crosses 80
   useEffect(() => {
     if (confidence >= 80 && prevConfidence.current < 80 && !celebrated) {
       setCelebrated(true);
+      setShowBudgetChips(true);   // show budget adjustment chips after recommendation
     }
-    if (confidence < 80) setCelebrated(false);
+    if (confidence < 80) { setCelebrated(false); setShowBudgetChips(false); }
     prevConfidence.current = confidence;
   }, [confidence, celebrated]);
 
@@ -190,18 +197,82 @@ export default function ChatInterface() {
     setMessages(prev => [...prev, { role: "agent", content, type: "text" }]);
   }, []);
 
-  const addRecommendation = useCallback((data: RecommendationData) => {
-    setMessages(prev => [...prev, { role: "agent", content: "", type: "recommendation", recommendation: data }]);
+  const addRecommendation = useCallback((data: RecommendationData, pickNumber = 1) => {
+    setMessages(prev => [...prev, {
+      role: "agent",
+      content: "",
+      type: "recommendation",
+      recommendation: data,
+      pickNumber,
+    }]);
   }, []);
+
+  // ── "Not this one" handler ─────────────────────────────────────────────────
+  const handleReject = useCallback(async (msgIndex: number) => {
+    setRejectingIdx(msgIndex);
+    try {
+      const result = await nextPick(sessionId);
+      if (result.error || !result.product) {
+        addAgentMessage(result.message || "No more alternatives — try describing your needs differently.");
+        return;
+      }
+      const pickNum = result.pick_number ?? 2;
+      setMessages(prev => [...prev, {
+        role: "agent",
+        content: "",
+        type: "recommendation",
+        recommendation: {
+          product: result.product!,
+          reasoning: `This is pick #${pickNum} — the next-best match for your stated needs.`,
+          regret_risk: "medium",
+          regret_scenario: "",
+          tradeoff: "Slightly lower match score than the top pick.",
+          confidence_score: result.confidence_score ?? 0,
+          elimination: [],
+        },
+        pickNumber: pickNum,
+      }]);
+    } catch {
+      addAgentMessage("Couldn't fetch the next pick. Please try again.");
+    } finally {
+      setRejectingIdx(null);
+    }
+  }, [sessionId, addAgentMessage]);
+
+  // ── "Ask anything" handler ─────────────────────────────────────────────────
+  const handleAsk = useCallback(async (question: string): Promise<string> => {
+    return askProduct(sessionId, question);
+  }, [sessionId]);
+
+  // ── Budget chip handler ────────────────────────────────────────────────────
+  const handleBudgetChip = useCallback((chip: string) => {
+    // e.g. "+₹5K" → add 5000 to last budget
+    const match = chip.match(/\+₹(\d+)K/);
+    if (!match) return;
+    const addAmount = parseInt(match[1]) * 1000;
+    const base = lastBudgetRef.current ?? 0;
+    const newBudget = base + addAmount;
+    lastBudgetRef.current = newBudget;
+    const text = `Increase my budget to ₹${newBudget.toLocaleString("en-IN")}`;
+    handleSend(text);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = useCallback(async (override?: string) => {
     const trimmed = (override ?? input).trim();
     if (!trimmed || isStreaming) return;
 
+    // Track budget from message
+    const budgetMatch = trimmed.match(/₹\s*([\d,]+)/);
+    if (budgetMatch) {
+      const num = parseInt(budgetMatch[1].replace(/,/g, ""));
+      if (!isNaN(num)) lastBudgetRef.current = num;
+    }
+
     setMessages(prev => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     setIsStreaming(true);
     setStatusText("");
+    setShowBudgetChips(false);
 
     try {
       const historyForApi = [...messages, { role: "user" as const, content: trimmed }];
@@ -242,6 +313,23 @@ export default function ChatInterface() {
             }
             break;
 
+          case "budget_pick":
+            // Append budget optimizer card as a special agent message
+            if (event.product && event.savings !== undefined && event.fit_pct !== undefined) {
+              setMessages(prev => [...prev, {
+                role: "agent",
+                content: "",
+                type: "text",
+                budgetPick: {
+                  product: event.product!,
+                  savings: event.savings!,
+                  fit_pct: event.fit_pct!,
+                  confidence_score: event.confidence_score ?? 0,
+                },
+              }]);
+            }
+            break;
+
           case "recommendation":
             if (event.product) {
               setStatusText("");
@@ -265,6 +353,7 @@ export default function ChatInterface() {
                 role: "agent",
                 content: "",
                 type: "recommendation",
+                pickNumber: 1,
                 recommendation: {
                   product: event.product!,
                   reasoning: "",
@@ -340,13 +429,9 @@ export default function ChatInterface() {
     }
   }, [input, isStreaming, sessionId, messages, confidence, addAgentMessage, addRecommendation]);
 
-  // Voice transcript handler — fill input then auto-send
   const handleVoiceTranscript = useCallback((text: string) => {
     setInput(text);
-    // Small delay so user sees what was transcribed before it sends
-    setTimeout(() => {
-      handleSend(text);
-    }, 600);
+    setTimeout(() => handleSend(text), 600);
   }, [handleSend]);
 
   const handleReset = useCallback(async () => {
@@ -361,6 +446,8 @@ export default function ChatInterface() {
     setStatusText("");
     setIsStreamingReasoning(false);
     setCelebrated(false);
+    setShowBudgetChips(false);
+    lastBudgetRef.current = null;
     inputRef.current?.focus();
   }, [sessionId]);
 
@@ -394,7 +481,7 @@ export default function ChatInterface() {
       {/* Main chat */}
       <div className="flex flex-col flex-1 min-w-0 relative">
 
-        {/* Subtle gradient background */}
+        {/* Subtle gradient */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-50/40 via-white to-white dark:from-indigo-950/20 dark:via-gray-950 dark:to-gray-950" />
 
         {/* Mobile header */}
@@ -436,13 +523,26 @@ export default function ChatInterface() {
                 </div>
 
                 <div className={`max-w-[80%] ${msg.role === "user" ? "items-end flex flex-col" : ""}`}>
-                  {msg.type === "recommendation" && msg.recommendation ? (
+                  {/* Budget Optimizer Card */}
+                  {msg.budgetPick ? (
+                    <div className="w-full max-w-md">
+                      <BudgetOptimizerCard data={msg.budgetPick} />
+                    </div>
+
+                  /* Recommendation Card */
+                  ) : msg.type === "recommendation" && msg.recommendation ? (
                     <div className="w-full max-w-md">
                       <ProductCard
                         data={msg.recommendation}
                         isStreaming={isStreamingReasoning && i === messages.length - 1}
+                        pickNumber={msg.pickNumber ?? 1}
+                        onReject={i === messages.length - 1 ? () => handleReject(i) : undefined}
+                        isRejecting={rejectingIdx === i}
+                        onAsk={handleAsk}
                       />
                     </div>
+
+                  /* Text message */
                   ) : msg.content ? (
                     <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                       msg.role === "user"
@@ -457,7 +557,7 @@ export default function ChatInterface() {
             ))}
           </AnimatePresence>
 
-          {/* Live browser status indicator */}
+          {/* Live status indicator */}
           <AnimatePresence>
             {isStreaming && (
               <motion.div
@@ -513,7 +613,7 @@ export default function ChatInterface() {
         {/* Input area */}
         <div className="relative border-t border-gray-100 dark:border-gray-800 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm px-4 py-3">
 
-          {/* Quick-start chips — only on first load */}
+          {/* Quick-start chips — first load only */}
           <AnimatePresence>
             {!hasUserMessages && !isStreaming && (
               <motion.div
@@ -540,6 +640,30 @@ export default function ChatInterface() {
             )}
           </AnimatePresence>
 
+          {/* Budget adjustment chips — appear after confident recommendation */}
+          <AnimatePresence>
+            {showBudgetChips && !isStreaming && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2 mb-3"
+              >
+                <span className="text-xs text-gray-400">Stretch budget?</span>
+                {BUDGET_CHIPS.map(chip => (
+                  <button
+                    key={chip}
+                    onClick={() => handleBudgetChip(chip)}
+                    className="text-xs px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 transition-all active:scale-95"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="flex gap-2 items-center">
             <input
               ref={inputRef}
@@ -551,10 +675,8 @@ export default function ChatInterface() {
               className="flex-1 text-sm px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 transition shadow-sm"
             />
 
-            {/* Voice input button */}
             <MicButton onTranscript={handleVoiceTranscript} disabled={isStreaming} />
 
-            {/* Send button */}
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || isStreaming}

@@ -55,13 +55,17 @@ export interface SSEEvent {
     | "confidence"
     | "message"
     | "followup"
-    | "status"                // live browser agent progress text
-    | "recommendation"        // legacy — kept for fallback
-    | "recommendation_start"  // A: product + elimination, no reasoning yet
-    | "token"                 // A: streaming reasoning chunk
-    | "recommendation_done"   // A: regret_risk / tradeoff after stream ends
+    | "status"
+    | "recommendation"
+    | "recommendation_start"
+    | "token"
+    | "recommendation_done"
+    | "budget_pick"           // secondary value-pick card
     | "error"
     | "done";
+  // budget_pick fields
+  savings?: number;
+  fit_pct?: number;
   // confidence
   score?: number;
   breakdown?: ConfidenceBreakdown;
@@ -139,4 +143,38 @@ export async function resetSession(sessionId: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId }),
   }).catch(() => {});
+}
+
+export interface NextPickResult {
+  product?: RecommendationData["product"];
+  confidence_score?: number;
+  pick_number?: number;
+  error?: boolean;
+  message?: string;
+}
+
+export async function nextPick(sessionId: string): Promise<NextPickResult> {
+  const resp = await fetch(`${API_URL}/api/next-pick`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  return resp.json();
+}
+
+export async function askProduct(sessionId: string, question: string): Promise<string> {
+  const resp = await fetch(`${API_URL}/api/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, question }),
+  });
+  const data = await resp.json();
+  return data.answer || "";
+}
+
+export interface BudgetPickData {
+  product: RecommendationData["product"];
+  savings: number;
+  fit_pct: number;
+  confidence_score: number;
 }

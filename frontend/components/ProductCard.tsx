@@ -1,15 +1,24 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ExternalLink, AlertCircle, TrendingUp, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ExternalLink, AlertCircle, TrendingUp, Star,
+  ShoppingCart, X, Volume2, Share2, MessageCircle,
+  Send, ChevronDown,
+} from "lucide-react";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import EliminationPanel from "./EliminationPanel";
 import type { RecommendationData } from "@/lib/api";
 
 interface Props {
   data: RecommendationData;
   isStreaming?: boolean;
+  onReject?: () => void;
+  isRejecting?: boolean;
+  pickNumber?: number;           // 1 = top pick, 2+ = alternate
+  sessionId?: string;
+  onAsk?: (question: string) => Promise<string>;
 }
 
 const REGRET_CONFIG = {
@@ -33,32 +42,116 @@ const REGRET_CONFIG = {
   },
 };
 
-export default function ProductCard({ data, isStreaming = false }: Props) {
+const SHOPIFY_STORE = "shopsense-rueprzpz.myshopify.com";
+
+const SOURCE_LABELS: Record<string, string> = {
+  amazon:   "Amazon.in",
+  flipkart: "Flipkart",
+  carwale:  "CarWale",
+  olx:      "OLX",
+  shopify:  "Store",
+};
+
+const SOURCE_SEARCH_URLS: Record<string, string> = {
+  amazon:   "https://www.amazon.in/s?k=",
+  flipkart: "https://www.flipkart.com/search?q=",
+  carwale:  "https://www.carwale.com/search/?q=",
+  olx:      "https://www.olx.in/items/q-",
+};
+
+export default function ProductCard({
+  data,
+  isStreaming = false,
+  onReject,
+  isRejecting = false,
+  pickNumber = 1,
+  onAsk,
+}: Props) {
   const { product, reasoning, regret_risk, regret_scenario, tradeoff, confidence_score, elimination } = data;
   const regret = REGRET_CONFIG[regret_risk] || REGRET_CONFIG.low;
-  const [imgFailed, setImgFailed] = useState(false);
+  const [imgFailed, setImgFailed]   = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [copied, setCopied]         = useState(false);
+  const [askOpen, setAskOpen]       = useState(false);
+  const [askInput, setAskInput]     = useState("");
+  const [askAnswer, setAskAnswer]   = useState("");
+  const [askLoading, setAskLoading] = useState(false);
+  const askRef = useRef<HTMLInputElement>(null);
 
-  const SOURCE_LABELS: Record<string, string> = {
-    amazon:   "Amazon.in",
-    flipkart: "Flipkart",
-    carwale:  "CarWale",
-    olx:      "OLX",
-  };
-
-  const SOURCE_SEARCH_URLS: Record<string, string> = {
-    amazon:   `https://www.amazon.in/s?k=${encodeURIComponent(product.title)}`,
-    flipkart: `https://www.flipkart.com/search?q=${encodeURIComponent(product.title)}`,
-    carwale:  `https://www.carwale.com/search/?q=${encodeURIComponent(product.title)}`,
-    olx:      `https://www.olx.in/items/q-${encodeURIComponent(product.title)}`,
-  };
-
-  const sourceKey = product.source || "amazon";
+  const sourceKey = product.source || "shopify";
   const sourceLabel = SOURCE_LABELS[sourceKey] || sourceKey;
-  // Prefer the direct URL from the browser agent; fall back to search URL
-  const sourceUrl = product.url || SOURCE_SEARCH_URLS[sourceKey] || SOURCE_SEARCH_URLS.amazon;
+  const isShopify = sourceKey === "shopify" || !product.source;
 
-  const handleViewProduct = () => {
-    window.open(sourceUrl, "_blank");
+  // Build view URL
+  const sourceUrl = product.url
+    || (SOURCE_SEARCH_URLS[sourceKey]
+        ? SOURCE_SEARCH_URLS[sourceKey] + encodeURIComponent(product.title)
+        : `https://${SHOPIFY_STORE}/products/${product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
+
+  // Build Shopify cart URL from variant_id GID
+  const cartUrl = (() => {
+    if (!isShopify || !product.variant_id) return null;
+    const numeric = product.variant_id.split("/").pop();
+    if (!numeric || isNaN(Number(numeric))) return null;
+    return `https://${SHOPIFY_STORE}/cart/${numeric}:1`;
+  })();
+
+  // ── TTS ────────────────────────────────────────────────────────────────────
+  const handleSpeak = () => {
+    if (!("speechSynthesis" in window)) return;
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    const text = [
+      `${product.title}. Price: ₹${product.price.toLocaleString("en-IN")}.`,
+      reasoning,
+      tradeoff ? `One tradeoff: ${tradeoff}` : "",
+    ].filter(Boolean).join(" ");
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-IN";
+    utter.rate = 0.95;
+    utter.onend = () => setIsSpeaking(false);
+    utter.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utter);
+  };
+
+  // ── Share / Copy ───────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    const text = `🛒 ShopSense recommends: ${product.title}\n💰 ₹${product.price.toLocaleString("en-IN")}\n\n${reasoning}\n\n🔗 ${sourceUrl}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product.title, text, url: sourceUrl });
+      } else {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch { /* user dismissed */ }
+  };
+
+  // ── Ask panel ─────────────────────────────────────────────────────────────
+  const handleAsk = async () => {
+    const q = askInput.trim();
+    if (!q || !onAsk) return;
+    setAskLoading(true);
+    setAskAnswer("");
+    try {
+      const answer = await onAsk(q);
+      setAskAnswer(answer);
+    } catch {
+      setAskAnswer("Sorry, couldn't get an answer right now.");
+    } finally {
+      setAskLoading(false);
+    }
+  };
+
+  const toggleAsk = () => {
+    setAskOpen(v => !v);
+    if (!askOpen) setTimeout(() => askRef.current?.focus(), 150);
   };
 
   return (
@@ -68,6 +161,15 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
       transition={{ duration: 0.35, ease: "easeOut" }}
       className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden w-full"
     >
+      {/* Alternate pick banner */}
+      {pickNumber > 1 && (
+        <div className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-100 dark:border-amber-900">
+          <span className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+            #{pickNumber} pick — step down from best match
+          </span>
+        </div>
+      )}
+
       {/* Top section */}
       <div className="flex gap-0">
         {/* Product image */}
@@ -96,7 +198,7 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
           {/* Badges */}
           <div className="flex flex-wrap gap-1.5 mb-2">
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
-              Best match
+              {pickNumber === 1 ? "Best match" : `Pick #${pickNumber}`}
             </span>
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${regret.bg} ${regret.text}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${regret.dot}`} />
@@ -155,10 +257,145 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Action buttons row */}
+      <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5 border-t border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/60">
+        {/* Add to Cart — Shopify only */}
+        {cartUrl && (
+          <motion.a
+            href={cartUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all shadow-sm"
+          >
+            <ShoppingCart size={12} />
+            Add to Cart
+          </motion.a>
+        )}
+
+        {/* View on source */}
+        <motion.button
+          onClick={() => window.open(sourceUrl, "_blank")}
+          whileTap={{ scale: 0.95 }}
+          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 hover:text-indigo-600 text-gray-600 dark:text-gray-400 rounded-lg transition-all bg-white dark:bg-gray-900"
+        >
+          <ExternalLink size={11} />
+          {cartUrl ? "View" : `View on ${sourceLabel}`}
+        </motion.button>
+
+        {/* Ask anything */}
+        {onAsk && (
+          <motion.button
+            onClick={toggleAsk}
+            whileTap={{ scale: 0.95 }}
+            className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all border ${
+              askOpen
+                ? "bg-indigo-50 dark:bg-indigo-950 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300"
+                : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-indigo-300 hover:text-indigo-600 bg-white dark:bg-gray-900"
+            }`}
+          >
+            <MessageCircle size={11} />
+            Ask
+            <ChevronDown size={10} className={`transition-transform ${askOpen ? "rotate-180" : ""}`} />
+          </motion.button>
+        )}
+
+        {/* Read aloud */}
+        <motion.button
+          onClick={handleSpeak}
+          whileTap={{ scale: 0.95 }}
+          title={isSpeaking ? "Stop reading" : "Read aloud"}
+          className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all border ${
+            isSpeaking
+              ? "bg-violet-50 dark:bg-violet-950 border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300"
+              : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-violet-300 hover:text-violet-600 bg-white dark:bg-gray-900"
+          }`}
+        >
+          <Volume2 size={11} />
+          {isSpeaking ? "Stop" : "Read"}
+        </motion.button>
+
+        {/* Share */}
+        <motion.button
+          onClick={handleShare}
+          whileTap={{ scale: 0.95 }}
+          title="Share recommendation"
+          className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-green-300 hover:text-green-600 bg-white dark:bg-gray-900"
+        >
+          <Share2 size={11} />
+          {copied ? "Copied!" : "Share"}
+        </motion.button>
+
+        {/* Not this one */}
+        {onReject && (
+          <motion.button
+            onClick={onReject}
+            disabled={isRejecting}
+            whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all border border-gray-200 dark:border-gray-700 text-gray-400 hover:border-red-300 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed bg-white dark:bg-gray-900 ml-auto"
+          >
+            <X size={11} />
+            {isRejecting ? "Finding next…" : "Not this one"}
+          </motion.button>
+        )}
+      </div>
+
+      {/* Ask panel */}
+      <AnimatePresence>
+        {askOpen && onAsk && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="overflow-hidden border-t border-gray-100 dark:border-gray-800"
+          >
+            <div className="px-3.5 py-3 bg-gray-50/80 dark:bg-gray-900/80">
+              <p className="text-xs text-gray-400 mb-2">Ask anything about this product</p>
+              <div className="flex gap-2">
+                <input
+                  ref={askRef}
+                  value={askInput}
+                  onChange={e => setAskInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") handleAsk(); }}
+                  placeholder="Is it good for heavy use? Does it have warranty?"
+                  className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <button
+                  onClick={handleAsk}
+                  disabled={!askInput.trim() || askLoading}
+                  className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 transition-all active:scale-95"
+                >
+                  <Send size={12} />
+                </button>
+              </div>
+              <AnimatePresence>
+                {(askLoading || askAnswer) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mt-2 text-xs text-gray-600 dark:text-gray-400 leading-relaxed bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2"
+                  >
+                    {askLoading ? (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-1 h-1 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </span>
+                    ) : askAnswer}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Regret footer */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
         {regret_scenario ? (
-          <div className="flex items-start gap-1.5 flex-1 mr-3">
+          <div className="flex items-start gap-1.5 flex-1">
             <AlertCircle size={12} className="text-gray-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-gray-500 leading-snug">
               Regret if: {regret_scenario}
@@ -167,13 +404,6 @@ export default function ProductCard({ data, isStreaming = false }: Props) {
         ) : (
           <div />
         )}
-        <button
-          onClick={handleViewProduct}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-lg transition-all flex-shrink-0"
-        >
-          <ExternalLink size={12} />
-          View on {sourceLabel}
-        </button>
       </div>
 
       {/* Elimination panel */}

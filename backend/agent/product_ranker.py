@@ -39,6 +39,23 @@ _ELIMINATION_SYSTEM = (
 _REGRET_SYSTEM = "You assess purchase regret risk. Return only valid JSON, no extra text."
 
 
+def _product_payload(p: dict) -> dict:
+    """Standardised product dict for SSE events."""
+    return {
+        "id":               p.get("id", ""),
+        "title":            p.get("title", ""),
+        "price":            p.get("price", 0),
+        "image_url":        p.get("image_url"),
+        "variant_id":       p.get("variant_id"),
+        "tags":             p.get("tags", []),
+        "source":           p.get("source"),
+        "rating":           p.get("rating"),
+        "review_count":     p.get("review_count"),
+        "review_highlight": p.get("review_highlight"),
+        "url":              p.get("url"),
+    }
+
+
 async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[dict, None]:
     """Async generator yielding SSE event dicts."""
 
@@ -61,29 +78,44 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
 
     scored.sort(key=lambda x: x["_score"], reverse=True)
     top = scored[0]
+    rest = scored[1:]
 
     # B: AI elimination reasons — single batched call
-    elimination = await _ai_elimination_reasons(intent, scored[1:])
+    elimination = await _ai_elimination_reasons(intent, rest)
 
-    # Emit recommendation_start with product info + elimination (reasoning streams after)
-    # IMPORTANT: preserve source, rating, review_count, url — used by ProductCard
+    # Budget optimizer: find best score-per-rupee alternative that's ≥15% cheaper
+    budget_pick = None
+    if rest and top.get("price", 0) > 0:
+        candidates = [
+            p for p in rest
+            if p.get("price", 0) > 0
+            and p["price"] < top["price"] * 0.85
+            and p["_score"] >= 55
+        ]
+        if candidates:
+            best_val = max(candidates, key=lambda x: x["_score"] / max(x["price"], 1))
+            savings = int(top["price"] - best_val["price"])
+            fit_pct = int(best_val["_score"] / max(top["_score"], 1) * 100)
+            budget_pick = {
+                "product": _product_payload(best_val),
+                "savings": savings,
+                "fit_pct": fit_pct,
+                "confidence_score": best_val["_score"],
+            }
+
+    # Full ranked list (for "not this one" flow) — stripped in main.py before SSE forward
+    all_ranked = [_product_payload(p) | {"_score": p["_score"]} for p in rest[:20]]
+
+    # Emit recommendation_start
     yield {
         "type": "recommendation_start",
-        "product": {
-            "id": top["id"],
-            "title": top["title"],
-            "price": top["price"],
-            "image_url": top.get("image_url"),
-            "variant_id": top.get("variant_id"),
-            "tags": top.get("tags", []),
-            "source": top.get("source"),              # "amazon"|"flipkart"|"carwale"|"olx"
-            "rating": top.get("rating"),
-            "review_count": top.get("review_count"),
-            "review_highlight": top.get("review_highlight"),  # short buyer quote
-            "url": top.get("url"),                    # direct product URL
-        },
+        "product": _product_payload(top),
         "confidence_score": top["_score"],
         "elimination": elimination,
+        # Intercepted + saved by main.py; stripped before forwarding to frontend
+        "_all_ranked": all_ranked,
+        "_budget_pick": budget_pick,
+        "_top_product": _product_payload(top) | {"description": top.get("description", "")},
     }
 
     # A: Stream reasoning tokens live

@@ -10,9 +10,10 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 load_dotenv()
@@ -36,8 +37,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory session store {session_id: {followup_count, intent}}
+# In-memory session store
 _sessions: dict[str, dict] = {}
+
+# Groq client for /api/ask
+_groq = AsyncOpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
+_LLM = "llama-3.3-70b-versatile"
 
 
 # ─── Models ────────────────────────────────────────────────────────────────────
@@ -169,7 +177,17 @@ async def chat(req: ChatRequest):
             })
 
             # 7. Rank + generate reasoning
+            # Intercept private fields before forwarding to frontend
             async for event in rank_and_reason(intent, products):
+                if event["type"] == "recommendation_start":
+                    session["ranked_products"]  = event.pop("_all_ranked", [])
+                    session["budget_pick"]       = event.pop("_budget_pick", None)
+                    session["top_product"]       = event.pop("_top_product", None)
+                    session["pick_index"]        = 0
+                    _sessions[session_id]        = session
+                    # Send budget_pick as separate event if exists
+                    if session["budget_pick"]:
+                        yield _sse({"type": "budget_pick", **session["budget_pick"]})
                 yield _sse(event)
 
             # 8. Reset follow-up count for next question
@@ -200,3 +218,72 @@ async def reset(req: ChatRequest):
     if req.session_id:
         _reset_session(req.session_id)
     return {"status": "reset"}
+
+
+# ─── New feature endpoints ──────────────────────────────────────────────────────
+
+class SessionRequest(BaseModel):
+    session_id: str
+
+class AskRequest(BaseModel):
+    session_id: str
+    question: str
+
+
+@app.post("/api/next-pick")
+async def next_pick(req: SessionRequest):
+    """Return the next-best ranked product when user says 'not this one'."""
+    session = _get_session(req.session_id)
+    ranked  = session.get("ranked_products", [])
+    idx     = session.get("pick_index", 0) + 1
+
+    if idx >= len(ranked) or not ranked:
+        return JSONResponse({
+            "error": True,
+            "message": "No more alternatives — try describing your needs differently.",
+        })
+
+    session["pick_index"] = idx
+    _sessions[req.session_id] = session
+    product = ranked[idx - 1]  # ranked list starts at index 1 (top was 0)
+
+    return {
+        "product":          product,
+        "confidence_score": product.get("_score", 0),
+        "pick_number":      idx + 1,
+    }
+
+
+@app.post("/api/ask")
+async def ask_product(req: AskRequest):
+    """Answer a free-form question about the currently recommended product."""
+    session = _get_session(req.session_id)
+    top     = session.get("top_product")
+
+    if not top:
+        return {"answer": "Ask me something first — search for a product and I'll answer questions about my recommendation."}
+
+    prompt = (
+        f"Product: {top.get('title','')}\n"
+        f"Price: ₹{top.get('price',0):,.0f}\n"
+        f"Rating: {top.get('rating','N/A')}★ from {top.get('review_count','?')} reviews\n"
+        f"Tags: {', '.join(top.get('tags', []))}\n"
+        f"Description: {top.get('description','')[:600]}\n\n"
+        f"User question: {req.question}\n\n"
+        f"Answer in 1-3 sentences using only the product info above. "
+        f"Be honest if the information isn't available. Don't make up specs."
+    )
+
+    try:
+        resp = await _groq.chat.completions.create(
+            model=_LLM,
+            max_tokens=200,
+            messages=[
+                {"role": "system", "content": "You are a helpful shopping assistant answering questions about a specific product. Be concise and honest."},
+                {"role": "user",   "content": prompt},
+            ],
+        )
+        return {"answer": resp.choices[0].message.content.strip()}
+    except Exception as exc:
+        print(f"[ask] error: {exc}")
+        return {"answer": "Sorry, I couldn't fetch an answer right now. Try again."}
