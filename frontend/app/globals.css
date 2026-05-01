@@ -24,3 +24,64 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Custom scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 4px; height: 4px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: #d1d5db; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb  { background: #374151; }
+  ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+}
+
+/* ── Shimmer skeleton animation ───────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  .shimmer {
+    background: linear-gradient(90deg, #1f2937 25%, #2d3748 50%, #1f2937 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* ── Voice waveform bars ──────────────────────────────────────────────────── */
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.35); opacity: 0.65; }
+  50%       { transform: scaleY(1.0);  opacity: 1.0;  }
+}
+
+.wave-bar {
+  animation: wave-bar 0.72s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+.wave-bar:nth-child(1) { animation-delay: 0.00s; }
+.wave-bar:nth-child(2) { animation-delay: 0.11s; }
+.wave-bar:nth-child(3) { animation-delay: 0.22s; }
+.wave-bar:nth-child(4) { animation-delay: 0.11s; }
+.wave-bar:nth-child(5) { animation-delay: 0.00s; }
+
+/* ── Smooth text cursor for streaming ────────────────────────────────────── */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  background: #6366f1;
+  border-radius: 1px;
+  margin-left: 2px;
+  vertical-align: middle;
+  animation: blink-cursor 0.9s ease-in-out infinite;
+}

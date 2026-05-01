@@ -38,15 +38,23 @@ function ScoreRing({ score, celebrated }: { score: number; celebrated?: boolean 
 
   return (
     <div className="flex justify-center relative">
-      {/* Celebration glow ring */}
+      {/* Celebration pulse rings */}
       <AnimatePresence>
         {celebrated && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: [0, 0.5, 0], scale: [0.85, 1.15, 1.3] }}
-            transition={{ duration: 1.2, ease: "easeOut" }}
-            className="absolute inset-0 rounded-full bg-green-400/30 blur-md"
-          />
+          <>
+            <motion.div
+              initial={{ opacity: 0.6, scale: 0.85 }}
+              animate={{ opacity: 0, scale: 1.5 }}
+              transition={{ duration: 0.9, ease: "easeOut" }}
+              className="absolute inset-0 rounded-full bg-green-400/40 blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0.4, scale: 0.85 }}
+              animate={{ opacity: 0, scale: 1.8 }}
+              transition={{ duration: 1.2, ease: "easeOut", delay: 0.15 }}
+              className="absolute inset-0 rounded-full bg-green-300/30 blur-md"
+            />
+          </>
         )}
       </AnimatePresence>
 
@@ -58,6 +66,17 @@ function ScoreRing({ score, celebrated }: { score: number; celebrated?: boolean 
         {/* Track */}
         <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="#e5e7eb" strokeWidth="8" />
 
+        {/* Glow filter */}
+        <defs>
+          <filter id="ring-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
         {/* Progress */}
         <motion.circle
           cx="50" cy="50" r={RADIUS}
@@ -68,6 +87,7 @@ function ScoreRing({ score, celebrated }: { score: number; celebrated?: boolean 
           strokeDasharray={CIRCUMFERENCE}
           strokeDashoffset={offset}
           transform="rotate(-90 50 50)"
+          filter={score >= 80 ? "url(#ring-glow)" : undefined}
           style={{ transition: "stroke-dashoffset 0.8s ease, stroke 0.4s ease" }}
         />
 

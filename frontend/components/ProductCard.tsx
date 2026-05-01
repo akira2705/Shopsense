@@ -70,6 +70,7 @@ export default function ProductCard({
   const { product, reasoning, regret_risk, regret_scenario, tradeoff, confidence_score, elimination } = data;
   const regret = REGRET_CONFIG[regret_risk] || REGRET_CONFIG.low;
   const [imgFailed, setImgFailed]   = useState(false);
+  const [imgLoaded, setImgLoaded]   = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied]         = useState(false);
   const [askOpen, setAskOpen]       = useState(false);
@@ -156,10 +157,11 @@ export default function ProductCard({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden w-full"
+      initial={{ opacity: 0, y: 16, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden w-full shadow-sm hover:shadow-md transition-shadow"
     >
       {/* Alternate pick banner */}
       {pickNumber > 1 && (
@@ -173,17 +175,22 @@ export default function ProductCard({
       {/* Top section */}
       <div className="flex gap-0">
         {/* Product image */}
-        <div className="w-24 min-w-24 bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center">
+        <div className="w-24 min-w-24 bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center overflow-hidden">
           {product.image_url && !imgFailed ? (
             <div className="relative w-24 h-full min-h-24">
+              {/* Shimmer skeleton while loading */}
+              {!imgLoaded && (
+                <div className="absolute inset-0 shimmer" />
+              )}
               <Image
                 src={product.image_url}
                 alt={product.title}
                 fill
-                className="object-cover"
+                className={`object-cover transition-opacity duration-500 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
                 sizes="96px"
                 unoptimized
                 onError={() => setImgFailed(true)}
+                onLoad={() => setImgLoaded(true)}
               />
             </div>
           ) : (
@@ -240,13 +247,21 @@ export default function ProductCard({
             </p>
           )}
 
-          {/* Reasoning */}
-          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2.5">
-            {reasoning || (isStreaming ? "" : "Analysing match…")}
-            {isStreaming && (
-              <span className="inline-block w-0.5 h-3 bg-indigo-500 ml-0.5 animate-pulse align-middle" />
-            )}
-          </p>
+          {/* Reasoning — skeleton while waiting for first tokens */}
+          {!reasoning && isStreaming ? (
+            <div className="space-y-1.5 mb-2.5">
+              <div className="shimmer h-2.5 rounded-full w-full" />
+              <div className="shimmer h-2.5 rounded-full w-[85%]" />
+              <div className="shimmer h-2.5 rounded-full w-[65%]" />
+            </div>
+          ) : (
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2.5">
+              {reasoning || "Analysing match…"}
+              {isStreaming && reasoning && (
+                <span className="streaming-cursor" />
+              )}
+            </p>
+          )}
 
           {/* Tradeoff */}
           {tradeoff && (
@@ -311,7 +326,15 @@ export default function ProductCard({
               : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-violet-300 hover:text-violet-600 bg-white dark:bg-gray-900"
           }`}
         >
-          <Volume2 size={11} />
+          {isSpeaking ? (
+            <span className="flex items-end gap-px" style={{ height: 11 }}>
+              {[4, 8, 5, 8, 4].map((h, idx) => (
+                <span key={idx} className="wave-bar bg-violet-500 rounded-sm" style={{ width: 2, height: h }} />
+              ))}
+            </span>
+          ) : (
+            <Volume2 size={11} />
+          )}
           {isSpeaking ? "Stop" : "Read"}
         </motion.button>
 
