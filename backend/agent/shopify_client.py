@@ -94,6 +94,112 @@ query SearchProducts($query: String!, $first: Int!) {
 """
 
 
+# ─── Category → Shopify productType mapping ────────────────────────────────────
+# Keys are lowercased category strings the LLM might produce.
+# Values are the exact productType strings used in the store.
+
+_CATEGORY_TO_PRODUCT_TYPES: dict[str, list[str]] = {
+    # Automobiles
+    "car":               ["Cars"],
+    "cars":              ["Cars"],
+    "automobile":        ["Cars"],
+    "vehicle":           ["Cars"],
+    "suv":               ["Cars"],
+    "hatchback":         ["Cars"],
+    "sedan":             ["Cars"],
+    "ev":                ["Cars"],
+    "electric car":      ["Cars"],
+    "electric vehicle":  ["Cars"],
+
+    # Phones
+    "phone":             ["Smartphone", "Phones"],
+    "phones":            ["Smartphone", "Phones"],
+    "smartphone":        ["Smartphone", "Phones"],
+    "smartphones":       ["Smartphone", "Phones"],
+    "mobile":            ["Smartphone", "Phones"],
+    "mobile phone":      ["Smartphone", "Phones"],
+
+    # Laptops
+    "laptop":            ["Laptop"],
+    "laptops":           ["Laptop"],
+    "notebook":          ["Laptop"],
+    "computer":          ["Laptop"],
+
+    # Headphones / audio
+    "headphone":         ["Headphones"],
+    "headphones":        ["Headphones"],
+    "earphone":          ["Headphones"],
+    "earphones":         ["Headphones"],
+    "earbuds":           ["Headphones"],
+    "speaker":           ["Headphones"],
+    "speakers":          ["Headphones"],
+    "bluetooth speaker": ["Headphones"],
+    "audio":             ["Headphones"],
+    "headset":           ["Headphones"],
+
+    # Shoes
+    "shoe":              ["Running Shoes"],
+    "shoes":             ["Running Shoes"],
+    "running shoe":      ["Running Shoes"],
+    "running shoes":     ["Running Shoes"],
+    "sneaker":           ["Running Shoes"],
+    "sneakers":          ["Running Shoes"],
+    "footwear":          ["Running Shoes"],
+
+    # Skincare / beauty
+    "skincare":          ["Skincare"],
+    "moisturizer":       ["Skincare"],
+    "serum":             ["Skincare"],
+    "sunscreen":         ["Skincare"],
+    "face wash":         ["Skincare"],
+    "beauty":            ["Skincare"],
+
+    # Home appliances
+    "air fryer":         ["Home Appliances"],
+    "vacuum cleaner":    ["Home Appliances"],
+    "vacuum":            ["Home Appliances"],
+    "mixer":             ["Home Appliances"],
+    "blender":           ["Home Appliances"],
+    "appliance":         ["Home Appliances"],
+    "home appliance":    ["Home Appliances"],
+
+    # Board games / toys
+    "board game":        ["Board Games"],
+    "board games":       ["Board Games"],
+    "card game":         ["Board Games"],
+    "toy":               ["Toys"],
+    "toys":              ["Toys"],
+
+    # Cases, bags, accessories
+    "case":              ["Covers & Cases"],
+    "cases":             ["Covers & Cases"],
+    "cover":             ["Covers & Cases"],
+    "laptop bag":        ["Covers & Cases"],
+    "backpack":          ["Covers & Cases", "Fashion"],
+    "bag":               ["Covers & Cases", "Fashion"],
+    "sleeve":            ["Covers & Cases"],
+    "laptop case":       ["Covers & Cases"],
+    "phone case":        ["Covers & Cases"],
+}
+
+
+def resolve_product_types(category: str) -> list[str]:
+    """Map an intent category string to Shopify productType values.
+    Returns [] if no mapping found (no filtering applied).
+    """
+    cat = category.lower().strip()
+    if not cat:
+        return []
+    # Direct match
+    if cat in _CATEGORY_TO_PRODUCT_TYPES:
+        return _CATEGORY_TO_PRODUCT_TYPES[cat]
+    # Substring match — handles "running shoes" matching "running shoe" etc.
+    for key, types in _CATEGORY_TO_PRODUCT_TYPES.items():
+        if key in cat or cat in key:
+            return types
+    return []
+
+
 # ─── Query builder ─────────────────────────────────────────────────────────────
 
 def _build_admin_query(intent: dict) -> str:
@@ -127,6 +233,13 @@ def _build_admin_query(intent: dict) -> str:
         for word in use_case.split():
             if len(word) >= 3:
                 or_terms.append(f'tag:{word}')
+
+    # Product type filter — hard AND clause so cross-category results are blocked at source
+    # e.g. "car" → product_type:"Cars"; "phone" → (product_type:"Smartphone" OR product_type:"Phones")
+    product_types = resolve_product_types(category)
+    if product_types:
+        type_clause = " OR ".join(f'product_type:"{pt}"' for pt in product_types)
+        parts.append(f'({type_clause})' if len(product_types) > 1 else f'product_type:"{product_types[0]}"')
 
     # Brand constraint → vendor: filter (AND, not OR — it's a hard constraint)
     brand = _extract_brand(intent)
@@ -237,6 +350,7 @@ def _parse_product(node: dict) -> dict:
         "subcategory":      subcategory,
         "model_type":       model_type,
         "price_band":       price_band,
+        "product_type":     ptype,   # Shopify productType — used for category hard-filter
         "url":              url,
         "source":           "shopify",
     }

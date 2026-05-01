@@ -63,7 +63,12 @@ async def rank_and_reason(intent: dict, products: list[dict]) -> AsyncGenerator[
         yield {"type": "error", "message": "No products to rank."}
         return
 
-    # Pre-filter: remove products that hard-violate explicit constraints
+    # Pre-filter 1: category isolation — never recommend a phone when someone asks for a car
+    category_filtered = _apply_category_filter(intent, products)
+    if category_filtered:
+        products = category_filtered
+
+    # Pre-filter 2: remove products that hard-violate explicit constraints
     # e.g. user said "8 seater" → eliminate clear 5-seaters before scoring
     filtered = _apply_constraint_filter(intent, products)
     # If the filter removed everything, fall back to the full list
@@ -280,6 +285,32 @@ def _build_elimination_deterministic(intent: dict, products: list[dict]) -> list
         }
         for p in products
     ]
+
+
+def _apply_category_filter(intent: dict, products: list) -> list:
+    """
+    Hard-remove products whose Shopify productType doesn't match the intent category.
+    This is the primary guard against cross-category contamination:
+    asking for a car should never return a phone, even if it fits the budget.
+
+    Returns [] if no category mapping exists (caller falls back to full list).
+    """
+    from agent.shopify_client import resolve_product_types
+
+    category = (intent.get("category") or "").strip()
+    if not category:
+        return []
+
+    expected_types = resolve_product_types(category)
+    if not expected_types:
+        return []  # no mapping → don't filter, let scoring handle it
+
+    expected_lower = {t.lower() for t in expected_types}
+    filtered = [
+        p for p in products
+        if (p.get("product_type") or "").lower() in expected_lower
+    ]
+    return filtered  # caller falls back to full list if this is empty
 
 
 def _apply_constraint_filter(intent: dict, products: list) -> list:
